@@ -15,6 +15,10 @@ import {
 import { cn } from "@/lib/utils";
 import type { TeamSummary, TeamMembership, TeamRole } from "@/lib/teams/types";
 import { TeamOverviewTab } from "./team-overview-tab";
+import { TeamMembersTab } from "./team-members-tab";
+import { InviteTeamMemberModal } from "./invite-team-member-modal";
+import { ChangeTeamRoleModal } from "./change-team-role-modal";
+import { TransferTeamOwnershipModal } from "./transfer-team-ownership-modal";
 import { ComingSoon } from "@/features/shell/components/coming-soon";
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
@@ -44,6 +48,8 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
 
   const activeTab = (searchParams.get("tab") as TabKey) ?? "overview";
   const [inviteOpen, setInviteOpen] = React.useState(false);
+  const [changeRoleTarget, setChangeRoleTarget] = React.useState<TeamMembership | null>(null);
+  const [transferTarget, setTransferTarget] = React.useState<TeamMembership | null>(null);
   const [currentUserRole, setCurrentUserRole] = React.useState<TeamRole>("VIEWER");
 
   function setTab(tab: TabKey) {
@@ -158,10 +164,13 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
           />
         )}
         {activeTab === "members" && (
-          <ComingSoon
-            title="Members"
-            description="Manage team members, roles, and invitations."
-            icon={Users}
+          <TeamMembersTab
+            team={team}
+            currentUserEmail={currentUserEmail}
+            onInvite={() => setInviteOpen(true)}
+            onChangeRole={(member) => setChangeRoleTarget(member)}
+            onTransferOwnership={(member) => setTransferTarget(member)}
+            onCurrentUserRoleResolved={setCurrentUserRole}
           />
         )}
         {activeTab === "projects" && (
@@ -179,6 +188,28 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
           />
         )}
       </div>
+      {/* ── Modals ── */}
+      <InviteTeamMemberModal
+        open={inviteOpen}
+        teamId={team.id}
+        teamName={team.name}
+        onClose={() => setInviteOpen(false)}
+      />
+      <ChangeTeamRoleModal
+        open={changeRoleTarget !== null}
+        teamId={team.id}
+        member={changeRoleTarget}
+        currentUserRole={currentUserRole}
+        onClose={() => setChangeRoleTarget(null)}
+      />
+      <TransferTeamOwnershipModal
+        open={transferTarget !== null}
+        teamId={team.id}
+        teamName={team.name}
+        member={transferTarget}
+        currentOwnerEmail={currentUserEmail}
+        onClose={() => setTransferTarget(null)}
+      />
     </div>
   );
 }

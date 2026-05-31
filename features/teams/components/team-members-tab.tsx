@@ -19,8 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { OrgRoleBadge } from "./org-role-badge";
-import type { OrgMembership, OrgRole, OrganizationSummary } from "@/lib/organizations/types";
+import { TeamRoleBadge } from "./team-role-badge";
 import {
   MemberSearchBar,
   RoleFilterSelect,
@@ -30,15 +29,15 @@ import {
   MembersErrorState,
   MembersTablePagination,
 } from "@/features/shared/members/members-table-ui";
+import type { TeamMembership, TeamRole, TeamSummary } from "@/lib/teams/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ORG_ROLES: OrgRole[] = ["OWNER", "ADMIN", "MANAGER", "MEMBER", "VIEWER"];
+const TEAM_ROLES: TeamRole[] = ["OWNER", "MANAGER", "LEAD", "MEMBER", "VIEWER"];
 const PAGE_SIZE = 10;
 
-// Role hierarchy — used to determine what actions the current user can take
-const ROLE_LEVEL: Record<OrgRole, number> = {
-  OWNER: 5, ADMIN: 4, MANAGER: 3, MEMBER: 2, VIEWER: 1,
+const ROLE_LEVEL: Record<TeamRole, number> = {
+  OWNER: 5, MANAGER: 4, LEAD: 3, MEMBER: 2, VIEWER: 1,
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -48,39 +47,34 @@ type SortDir = "asc" | "desc";
 
 type FetchState =
   | { status: "loading" }
-  | { status: "success"; members: OrgMembership[]; total: number }
+  | { status: "success"; members: TeamMembership[]; total: number }
   | { status: "error"; message: string };
 
-type OrgMembersTabProps = {
-  org: OrganizationSummary;
+type TeamMembersTabProps = {
+  team: TeamSummary;
   currentUserEmail: string;
-  /** Called when "Invite Member" is clicked — wired in Screen 5 */
   onInvite?: () => void;
-  /** Called when "Change Role" is clicked — wired in Screen 6 */
-  onChangeRole?: (member: OrgMembership) => void;
-  /** Called when "Transfer Ownership" is clicked — wired in Screen 7 */
-  onTransferOwnership?: (member: OrgMembership) => void;
-  /** Called when "Remove Member" is clicked — wired in Screen 6 */
-  onRemoveMember?: (member: OrgMembership) => void;
-  /** Fires once the current user's role is resolved from the member list */
-  onCurrentUserRoleResolved?: (role: OrgRole) => void;
+  onChangeRole?: (member: TeamMembership) => void;
+  onTransferOwnership?: (member: TeamMembership) => void;
+  onRemoveMember?: (member: TeamMembership) => void;
+  onCurrentUserRoleResolved?: (role: TeamRole) => void;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function OrgMembersTab({
-  org,
+export function TeamMembersTab({
+  team,
   currentUserEmail,
   onInvite,
   onChangeRole,
   onTransferOwnership,
   onRemoveMember,
   onCurrentUserRoleResolved,
-}: OrgMembersTabProps) {
+}: TeamMembersTabProps) {
   const [fetchState, setFetchState] = React.useState<FetchState>({ status: "loading" });
   const [search, setSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
-  const [roleFilter, setRoleFilter] = React.useState<OrgRole | "">("");
+  const [roleFilter, setRoleFilter] = React.useState<TeamRole | "">("");
   const [sortField, setSortField] = React.useState<SortField>("joined_at");
   const [sortDir, setSortDir] = React.useState<SortDir>("desc");
   const [page, setPage] = React.useState(1);
@@ -106,7 +100,7 @@ export function OrgMembersTab({
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (roleFilter) params.set("role", roleFilter);
 
-      const res = await fetch(`/api/organizations/${org.id}/members?${params.toString()}`);
+      const res = await fetch(`/api/teams/${team.id}/members?${params.toString()}`);
       const data = await res.json();
 
       if (!res.ok) {
@@ -114,26 +108,25 @@ export function OrgMembersTab({
         return;
       }
 
-      const members: OrgMembership[] = data.results?.data ?? [];
+      const members: TeamMembership[] = data.results?.data ?? [];
       setFetchState({ status: "success", members, total: data.count ?? members.length });
     } catch {
       setFetchState({ status: "error", message: "Network error. Please try again." });
     }
-  }, [org.id, page, debouncedSearch, roleFilter, sortField, sortDir]);
+  }, [team.id, page, debouncedSearch, roleFilter, sortField, sortDir]);
 
   React.useEffect(() => { fetchMembers(); }, [fetchMembers]);
 
-  // Determine current user's role for permission checks
-  const currentUserRole: OrgRole =
+  // Resolve current user's role
+  const currentUserRole: TeamRole =
     fetchState.status === "success"
       ? (fetchState.members.find((m) => m.user_email === currentUserEmail)?.role ?? "VIEWER")
       : "VIEWER";
 
   const currentUserLevel = ROLE_LEVEL[currentUserRole];
   const isOwner = currentUserRole === "OWNER";
-  const isAdminOrAbove = currentUserLevel >= ROLE_LEVEL.ADMIN;
+  const isManagerOrAbove = currentUserLevel >= ROLE_LEVEL.MANAGER;
 
-  // Notify shell of resolved role (used by ChangeRoleModal)
   React.useEffect(() => {
     if (fetchState.status === "success") {
       onCurrentUserRoleResolved?.(currentUserRole);
@@ -163,10 +156,10 @@ export function OrgMembersTab({
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
           <MemberSearchBar value={search} onChange={setSearch} />
-          <RoleFilterSelect<OrgRole>
+          <RoleFilterSelect<TeamRole>
             value={roleFilter}
             onChange={setRoleFilter}
-            roles={ORG_ROLES}
+            roles={TEAM_ROLES}
           />
         </div>
         <div className="flex items-center gap-3">
@@ -175,7 +168,7 @@ export function OrgMembersTab({
               {total} {total === 1 ? "member" : "members"}
             </p>
           )}
-          {isAdminOrAbove && (
+          {isManagerOrAbove && (
             <Button size="default" className="gap-1.5 shrink-0" onClick={onInvite}>
               <UserPlus className="size-4" />
               Invite Member
@@ -186,7 +179,6 @@ export function OrgMembersTab({
 
       {/* ── Table ── */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        {/* Table header */}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
@@ -195,7 +187,7 @@ export function OrgMembersTab({
                   Member
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  <SortButton
+                  <SortButton<SortField>
                     label="Role"
                     field="role"
                     current={sortField}
@@ -207,7 +199,7 @@ export function OrgMembersTab({
                   Status
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  <SortButton
+                  <SortButton<SortField>
                     label="Joined"
                     field="joined_at"
                     current={sortField}
@@ -220,16 +212,10 @@ export function OrgMembersTab({
             </thead>
 
             <tbody className="divide-y divide-border/60">
-              {/* Loading rows */}
               {isLoading &&
-                Array.from({ length: 5 }).map((_, i) => (
-                  <MemberSkeletonRow key={i} />
-                ))}
+                Array.from({ length: 5 }).map((_, i) => <MemberSkeletonRow key={i} />)}
 
-              {/* Data rows */}
-              {!isLoading &&
-                !isError &&
-                !isEmpty &&
+              {!isLoading && !isError && !isEmpty &&
                 members.map((member) => (
                   <MemberRow
                     key={member.user}
@@ -246,17 +232,15 @@ export function OrgMembersTab({
           </table>
         </div>
 
-        {/* Empty state — inside the table container */}
         {isEmpty && (
           <MembersEmptyState
             hasFilters={!!debouncedSearch || !!roleFilter}
             onClear={() => { setSearch(""); setRoleFilter(""); }}
-            onInvite={isAdminOrAbove ? onInvite : undefined}
-            context="organization"
+            onInvite={isManagerOrAbove ? onInvite : undefined}
+            context="team"
           />
         )}
 
-        {/* Error state */}
         {isError && (
           <MembersErrorState
             message={(fetchState as { status: "error"; message: string }).message}
@@ -264,7 +248,6 @@ export function OrgMembersTab({
           />
         )}
 
-        {/* Pagination footer */}
         {!isLoading && !isError && !isEmpty && (
           <MembersTablePagination
             page={page}
@@ -283,13 +266,13 @@ export function OrgMembersTab({
 // ─── Member Row ───────────────────────────────────────────────────────────────
 
 type MemberRowProps = {
-  member: OrgMembership;
+  member: TeamMembership;
   isCurrentUser: boolean;
   currentUserLevel: number;
   isOwner: boolean;
-  onChangeRole?: (m: OrgMembership) => void;
-  onTransferOwnership?: (m: OrgMembership) => void;
-  onRemoveMember?: (m: OrgMembership) => void;
+  onChangeRole?: (m: TeamMembership) => void;
+  onTransferOwnership?: (m: TeamMembership) => void;
+  onRemoveMember?: (m: TeamMembership) => void;
 };
 
 function MemberRow({
@@ -302,18 +285,13 @@ function MemberRow({
   onRemoveMember,
 }: MemberRowProps) {
   const targetLevel = ROLE_LEVEL[member.role];
-  // Can act on this member only if current user outranks them
   const canAct = currentUserLevel > targetLevel && !isCurrentUser;
   const canTransfer = isOwner && member.role !== "OWNER";
   const canRemove = canAct;
   const canChangeRole = canAct;
   const hasAnyAction = canChangeRole || canTransfer || canRemove;
 
-  const initials = member.user_email
-    .split("@")[0]
-    .slice(0, 2)
-    .toUpperCase();
-
+  const initials = member.user_email.split("@")[0].slice(0, 2).toUpperCase();
   const joinedDate = new Date(member.joined_at).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -325,8 +303,7 @@ function MemberRow({
       {/* Member identity */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          {/* Avatar */}
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-info/15 text-[11px] font-bold text-info">
             {initials}
           </span>
           <div className="min-w-0">
@@ -344,7 +321,7 @@ function MemberRow({
 
       {/* Role */}
       <td className="px-4 py-3">
-        <OrgRoleBadge role={member.role} />
+        <TeamRoleBadge role={member.role} />
       </td>
 
       {/* Status */}
@@ -375,9 +352,7 @@ function MemberRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel className="text-xs">
-                {member.user_email}
-              </DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs">{member.user_email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
 
               {canChangeRole && (
@@ -394,9 +369,7 @@ function MemberRow({
                 </DropdownMenuItem>
               )}
 
-              {(canChangeRole || canTransfer) && canRemove && (
-                <DropdownMenuSeparator />
-              )}
+              {(canChangeRole || canTransfer) && canRemove && <DropdownMenuSeparator />}
 
               {canRemove && (
                 <DropdownMenuItem
@@ -410,22 +383,9 @@ function MemberRow({
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          // Placeholder to keep column width stable
           <div className="size-7" />
         )}
       </td>
     </tr>
   );
 }
-
-// ─── Sort Button ──────────────────────────────────────────────────────────────
-// (Provided by @/features/shared/members/members-table-ui)
-
-// ─── Skeleton Row ─────────────────────────────────────────────────────────────
-// (Provided by @/features/shared/members/members-table-ui)
-
-// ─── Empty State ──────────────────────────────────────────────────────────────
-// (Provided by @/features/shared/members/members-table-ui)
-
-// ─── Error State ──────────────────────────────────────────────────────────────
-// (Provided by @/features/shared/members/members-table-ui)
