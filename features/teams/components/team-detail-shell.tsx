@@ -17,10 +17,10 @@ import type { TeamSummary, TeamMembership, TeamRole } from "@/lib/teams/types";
 import { TeamOverviewTab } from "./team-overview-tab";
 import { TeamMembersTab } from "./team-members-tab";
 import { TeamProjectsTab } from "./team-projects-tab";
+import { TeamSettingsTab } from "./team-settings-tab";
 import { InviteTeamMemberModal } from "./invite-team-member-modal";
 import { ChangeTeamRoleModal } from "./change-team-role-modal";
 import { TransferTeamOwnershipModal } from "./transfer-team-ownership-modal";
-import { ComingSoon } from "@/features/shell/components/coming-soon";
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
@@ -48,10 +48,43 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
   const pathname = usePathname();
 
   const activeTab = (searchParams.get("tab") as TabKey) ?? "overview";
+
+  // ── Role resolution — shell-level, independent of which tab is active ──────
+  // Fetches the current user's membership on mount so every tab has the role
+  // immediately, without requiring the Members tab to be visited first.
+  const [currentUserRole, setCurrentUserRole] = React.useState<TeamRole>("VIEWER");
+  const [roleResolved, setRoleResolved] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function resolveRole() {
+      try {
+        const params = new URLSearchParams({
+          search: currentUserEmail,
+          page_size: "1",
+        });
+        const res = await fetch(`/api/teams/${team.id}/members?${params.toString()}`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const members: { user_email: string; role: TeamRole }[] =
+          data.results?.data ?? [];
+        const match = members.find((m) => m.user_email === currentUserEmail);
+        if (!cancelled) {
+          setCurrentUserRole(match?.role ?? "VIEWER");
+          setRoleResolved(true);
+        }
+      } catch {
+        if (!cancelled) setRoleResolved(true); // fail open — VIEWER is safe default
+      }
+    }
+    resolveRole();
+    return () => { cancelled = true; };
+  }, [team.id, currentUserEmail]);
+
+  // Modal state
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [changeRoleTarget, setChangeRoleTarget] = React.useState<TeamMembership | null>(null);
   const [transferTarget, setTransferTarget] = React.useState<TeamMembership | null>(null);
-  const [currentUserRole, setCurrentUserRole] = React.useState<TeamRole>("VIEWER");
 
   function setTab(tab: TabKey) {
     const params = new URLSearchParams(searchParams.toString());
@@ -69,11 +102,7 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
 
           {/* Breadcrumb */}
           <nav className="flex items-center gap-1.5 py-3 text-xs text-muted-foreground">
-            <Link
-              href="/teams"
-              prefetch={false}
-              className="hover:text-foreground transition-colors"
-            >
+            <Link href="/teams" prefetch={false} className="hover:text-foreground transition-colors">
               Teams
             </Link>
             {team.organization && team.organization_name && (
@@ -90,9 +119,7 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
               </>
             )}
             <ChevronRight className="size-3 shrink-0" />
-            <span className="text-foreground font-medium truncate max-w-[200px]">
-              {team.name}
-            </span>
+            <span className="text-foreground font-medium truncate max-w-[200px]">{team.name}</span>
           </nav>
 
           {/* Team identity */}
@@ -105,7 +132,6 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
                 <h1 className="text-xl font-semibold tracking-tight text-foreground truncate">
                   {team.name}
                 </h1>
-                {/* Org badge inline with title */}
                 {team.organization && team.organization_name && (
                   <Link
                     href={`/organizations/${team.organization}`}
@@ -118,13 +144,9 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
                 )}
               </div>
               {team.description ? (
-                <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
-                  {team.description}
-                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{team.description}</p>
               ) : (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Owner: {team.created_by_email}
-                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Owner: {team.created_by_email}</p>
               )}
             </div>
           </div>
@@ -171,6 +193,8 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
             onInvite={() => setInviteOpen(true)}
             onChangeRole={(member) => setChangeRoleTarget(member)}
             onTransferOwnership={(member) => setTransferTarget(member)}
+            // Keep the callback so the members tab can still update the role
+            // if the user's role changes while they're on that tab.
             onCurrentUserRoleResolved={setCurrentUserRole}
           />
         )}
@@ -182,13 +206,13 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
           />
         )}
         {activeTab === "settings" && (
-          <ComingSoon
-            title="Settings"
-            description="Configure team governance, limits, and role permissions."
-            icon={Settings}
+          <TeamSettingsTab
+            team={team}
+            currentUserRole={currentUserRole}
           />
         )}
       </div>
+
       {/* ── Modals ── */}
       <InviteTeamMemberModal
         open={inviteOpen}
