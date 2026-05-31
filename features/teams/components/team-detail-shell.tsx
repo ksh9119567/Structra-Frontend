@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import type { TeamSummary, TeamMembership, TeamRole } from "@/lib/teams/types";
 import { TeamOverviewTab } from "./team-overview-tab";
 import { TeamMembersTab } from "./team-members-tab";
+import { TeamProjectsTab } from "./team-projects-tab";
 import { InviteTeamMemberModal } from "./invite-team-member-modal";
 import { ChangeTeamRoleModal } from "./change-team-role-modal";
 import { TransferTeamOwnershipModal } from "./transfer-team-ownership-modal";
@@ -174,10 +175,10 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
           />
         )}
         {activeTab === "projects" && (
-          <ComingSoon
-            title="Projects"
-            description="View and manage all projects belonging to this team."
-            icon={FolderKanban}
+          <TeamProjectsTab
+            team={team}
+            currentUserRole={currentUserRole}
+            onCreateProject={() => {}}
           />
         )}
         {activeTab === "settings" && (
