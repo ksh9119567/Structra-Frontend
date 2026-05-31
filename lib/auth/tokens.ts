@@ -7,6 +7,7 @@ import {
   ACCESS_TOKEN_MAX_AGE,
   REFRESH_TOKEN_COOKIE,
   REFRESH_TOKEN_MAX_AGE,
+  getApiBaseUrl,
 } from "./config";
 
 type TokenPair = {
@@ -57,4 +58,33 @@ export async function getRefreshToken(): Promise<string | undefined> {
 
 export async function isAuthenticated(): Promise<boolean> {
   return Boolean(await getAccessToken());
+}
+
+/**
+ * Validates the stored access token against the backend.
+ * Returns true only if the backend confirms the token is valid.
+ * Clears cookies if the token is rejected (401/403).
+ */
+export async function verifySession(): Promise<boolean> {
+  const accessToken = await getAccessToken();
+  if (!accessToken) return false;
+
+  try {
+    const baseUrl = getApiBaseUrl();
+    const res = await fetch(`${baseUrl}/accounts/get-user/`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      await clearAuthCookies();
+      return false;
+    }
+
+    return res.ok;
+  } catch {
+    // Backend unreachable — don't clear cookies, just treat as unauthenticated
+    return false;
+  }
 }
