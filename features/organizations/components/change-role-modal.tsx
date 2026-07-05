@@ -123,6 +123,7 @@ export function ChangeRoleModal({
 
   if (!member) return null;
 
+  const memberEmail = member.user_email;
   const currentUserLevel = ROLE_LEVEL[currentUserRole];
   const targetCurrentLevel = ROLE_LEVEL[member.role];
 
@@ -155,7 +156,7 @@ export function ChangeRoleModal({
 
     try {
       const res = await fetch(
-        `/api/organizations/${orgId}/members/${encodeURIComponent(member.user_email)}`,
+        `/api/organizations/${orgId}/members/${encodeURIComponent(memberEmail)}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -170,7 +171,7 @@ export function ChangeRoleModal({
       }
 
       setModalState({ phase: "success", newRole: selectedRole });
-      onRoleChanged?.(member.user_email, selectedRole);
+      onRoleChanged?.(memberEmail, selectedRole);
     } catch {
       setModalState({ phase: "error", message: "Network error. Please check your connection." });
     }
@@ -475,8 +476,6 @@ function SuccessView({
   newRole: OrgRole;
   onClose: () => void;
 }) {
-  const initials = member.user_email.split("@")[0].slice(0, 2).toUpperCase();
-
   return (
     <div className="flex flex-col items-center px-6 py-10 text-center">
       <span className="mb-4 flex size-14 items-center justify-center rounded-full bg-success/15">

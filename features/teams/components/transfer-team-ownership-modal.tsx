@@ -65,6 +65,7 @@ export function TransferTeamOwnershipModal({
 
   if (!member) return null;
 
+  const memberEmail = member.user_email;
   const confirmationMatches = confirmText.trim() === teamName.trim();
   const canTransfer = confirmationMatches && !isTransferring;
 
@@ -76,7 +77,7 @@ export function TransferTeamOwnershipModal({
       const res = await fetch(`/api/teams/${teamId}/transfer-owner`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: member.user_email }),
+        body: JSON.stringify({ email: memberEmail }),
       });
       const data = await res.json();
 
@@ -85,8 +86,8 @@ export function TransferTeamOwnershipModal({
         return;
       }
 
-      setModalState({ phase: "success", newOwnerEmail: member.user_email });
-      onTransferred?.(member.user_email);
+      setModalState({ phase: "success", newOwnerEmail: memberEmail });
+      onTransferred?.(memberEmail);
     } catch {
       setModalState({ phase: "error", message: "Network error. Please check your connection." });
     }
@@ -97,7 +98,7 @@ export function TransferTeamOwnershipModal({
     if (!next) onClose();
   }
 
-  const newOwnerInitials = member.user_email.split("@")[0].slice(0, 2).toUpperCase();
+  const newOwnerInitials = memberEmail.split("@")[0].slice(0, 2).toUpperCase();
   const currentOwnerInitials = currentOwnerEmail.split("@")[0].slice(0, 2).toUpperCase();
 
   return (

@@ -12,7 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { TeamRoleBadge } from "./team-role-badge";
+import { ProjectRoleBadge } from "./project-role-badge";
 import {
   Spinner,
   MemberIdentityCard,
@@ -20,16 +20,16 @@ import {
   PermissionWarningBanner,
   FormErrorBanner,
 } from "@/features/shared/members/member-ui";
-import type { TeamMembership, TeamRole } from "@/lib/teams/types";
+import type { ProjectMembership, ProjectRole } from "@/lib/projects/types";
 
 // ─── Role hierarchy ───────────────────────────────────────────────────────────
 
-const ROLE_LEVEL: Record<TeamRole, number> = {
-  OWNER: 5, MANAGER: 4, LEAD: 3, MEMBER: 2, VIEWER: 1,
+const ROLE_LEVEL: Record<ProjectRole, number> = {
+  OWNER: 5, MANAGER: 4, LEAD: 3, CONTRIBUTOR: 2, VIEWER: 1,
 };
 
 type RoleMeta = {
-  value: TeamRole;
+  value: ProjectRole;
   label: string;
   description: string;
   permissions: string[];
@@ -39,30 +39,30 @@ const ROLE_META: RoleMeta[] = [
   {
     value: "MANAGER",
     label: "Manager",
-    description: "Manage team members and projects",
+    description: "Manage tasks and members",
     permissions: [
       "Invite, update, and remove members",
-      "Create and manage projects",
-      "View all team activity",
+      "Create and manage tasks",
+      "View all project activity",
     ],
   },
   {
     value: "LEAD",
     label: "Lead",
-    description: "Assign tasks and manage workflows",
+    description: "Assign and oversee tasks",
     permissions: [
-      "Assign tasks to team members",
-      "Manage project workflows",
+      "Assign tasks to contributors",
+      "Manage task workflows",
       "View members",
     ],
   },
   {
-    value: "MEMBER",
-    label: "Member",
-    description: "Standard access to assigned work",
+    value: "CONTRIBUTOR",
+    label: "Contributor",
+    description: "Work on assigned tasks",
     permissions: [
-      "View projects and tasks",
-      "Work on assigned tasks",
+      "View and update assigned tasks",
+      "Comment on tasks",
     ],
   },
   {
@@ -70,7 +70,7 @@ const ROLE_META: RoleMeta[] = [
     label: "Viewer",
     description: "Read-only access",
     permissions: [
-      "View projects and tasks",
+      "View tasks and project details",
       "Cannot create or modify anything",
     ],
   },
@@ -78,15 +78,16 @@ const ROLE_META: RoleMeta[] = [
 
 // ─── Permission warning messages ──────────────────────────────────────────────
 
-const DOWNGRADE_WARNINGS: Partial<Record<TeamRole, string>> = {
+const DOWNGRADE_WARNINGS: Partial<Record<ProjectRole, string>> = {
   MANAGER: "This member will lose the ability to invite, update, and remove other members.",
   LEAD: "This member will lose task assignment and workflow management permissions.",
-  MEMBER: "This member will lose the ability to create or modify content.",
+  CONTRIBUTOR: "This member will lose the ability to create or modify tasks.",
 };
 
-const UPGRADE_NOTES: Partial<Record<TeamRole, string>> = {
-  MANAGER: "This member will gain full management control over the team.",
-  LEAD: "This member will be able to assign tasks and manage workflows.",
+const UPGRADE_NOTES: Partial<Record<ProjectRole, string>> = {
+  MANAGER: "This member will gain full management control over the project.",
+  LEAD: "This member will be able to assign and manage tasks.",
+  CONTRIBUTOR: "This member will be able to work on assigned tasks.",
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -94,29 +95,29 @@ const UPGRADE_NOTES: Partial<Record<TeamRole, string>> = {
 type ModalPhase =
   | { phase: "idle" }
   | { phase: "saving" }
-  | { phase: "success"; newRole: TeamRole }
+  | { phase: "success"; newRole: ProjectRole }
   | { phase: "error"; message: string };
 
-export type ChangeTeamRoleModalProps = {
+export type ChangeProjectRoleModalProps = {
   open: boolean;
-  teamId: string;
-  member: TeamMembership | null;
-  currentUserRole: TeamRole;
+  projectId: string;
+  member: ProjectMembership | null;
+  currentUserRole: ProjectRole;
   onClose: () => void;
-  onRoleChanged?: (memberEmail: string, newRole: TeamRole) => void;
+  onRoleChanged?: (memberEmail: string, newRole: ProjectRole) => void;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function ChangeTeamRoleModal({
+export function ChangeProjectRoleModal({
   open,
-  teamId,
+  projectId,
   member,
   currentUserRole,
   onClose,
   onRoleChanged,
-}: ChangeTeamRoleModalProps) {
-  const [selectedRole, setSelectedRole] = React.useState<TeamRole | null>(null);
+}: ChangeProjectRoleModalProps) {
+  const [selectedRole, setSelectedRole] = React.useState<ProjectRole | null>(null);
   const [modalState, setModalState] = React.useState<ModalPhase>({ phase: "idle" });
 
   const isSaving = modalState.phase === "saving";
@@ -158,7 +159,7 @@ export function ChangeTeamRoleModal({
 
     try {
       const res = await fetch(
-        `/api/teams/${teamId}/members/${encodeURIComponent(memberEmail)}`,
+        `/api/projects/${projectId}/members/${encodeURIComponent(memberEmail)}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -201,7 +202,7 @@ export function ChangeTeamRoleModal({
                     Change Role
                   </DialogTitle>
                   <DialogDescription className="mt-0.5 text-xs text-muted-foreground">
-                    Update permissions for this team member.
+                    Update permissions for this project member.
                   </DialogDescription>
                 </div>
               </div>
@@ -215,10 +216,10 @@ export function ChangeTeamRoleModal({
               <MemberIdentityCard
                 email={member.user_email}
                 joinedAt={member.joined_at}
-                currentRoleBadge={<TeamRoleBadge role={member.role} />}
+                currentRoleBadge={<ProjectRoleBadge role={member.role} />}
                 nextRoleBadge={
                   selectedRole && selectedRole !== member.role
-                    ? <TeamRoleBadge role={selectedRole} />
+                    ? <ProjectRoleBadge role={selectedRole} />
                     : undefined
                 }
               />
@@ -231,7 +232,7 @@ export function ChangeTeamRoleModal({
                   {assignableRoles.map((r) => (
                     <RoleOptionCard
                       key={r.value}
-                      badge={<TeamRoleBadge role={r.value} />}
+                      badge={<ProjectRoleBadge role={r.value} />}
                       description={r.description}
                       permissions={r.permissions}
                       selected={selectedRole === r.value}
@@ -289,7 +290,7 @@ export function ChangeTeamRoleModal({
 function SuccessView({
   member, newRole, onClose,
 }: {
-  member: TeamMembership; newRole: TeamRole; onClose: () => void;
+  member: ProjectMembership; newRole: ProjectRole; onClose: () => void;
 }) {
   return (
     <div className="flex flex-col items-center px-6 py-10 text-center">
@@ -307,9 +308,9 @@ function SuccessView({
         </span>.
       </p>
       <div className="mt-5 flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-5 py-3">
-        <TeamRoleBadge role={member.role} />
+        <ProjectRoleBadge role={member.role} />
         <ArrowRight className="size-3.5 text-muted-foreground" />
-        <TeamRoleBadge role={newRole} />
+        <ProjectRoleBadge role={newRole} />
       </div>
       <Button size="default" onClick={onClose} className="mt-6 gap-1.5">
         Done <ArrowRight className="size-4" />
