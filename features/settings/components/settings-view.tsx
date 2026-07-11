@@ -303,14 +303,118 @@ function ChangePasswordForm({ user }: { user: AuthUser }) {
 // ─── Verification Panel ───────────────────────────────────────────────────────
 
 function VerificationPanel({ user }: { user: AuthUser }) {
+  const router = useRouter();
+
+  const [emailVerified, setEmailVerified] = React.useState(user.is_email_verified);
+  const [otpStep, setOtpStep] = React.useState(false);
+  const [otp, setOtp] = React.useState("");
+  const [sending, setSending] = React.useState(false);
+  const [verifying, setVerifying] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [success, setSuccess] = React.useState<string | null>(null);
+
+  async function handleRequestOtp() {
+    setError(null);
+    setSuccess(null);
+    setSending(true);
+    try {
+      const res = await fetch("/api/user/verify-email/request", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message ?? "Failed to send verification code.");
+        return;
+      }
+      setOtpStep(true);
+      setSuccess("A verification code has been sent to your email.");
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleConfirmOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setVerifying(true);
+    try {
+      const res = await fetch("/api/user/verify-email/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ otp: otp.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message ?? "Invalid or expired code.");
+        return;
+      }
+      setEmailVerified(true);
+      setOtpStep(false);
+      setOtp("");
+      setSuccess("Email verified successfully.");
+      router.refresh();
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3">
+      {error && <StatusBanner type="error" message={error} />}
+      {success && <StatusBanner type="success" message={success} />}
+
       <VerificationRow
         label="Email address"
         value={user.email}
-        verified={user.is_email_verified}
-        onVerify={() => {}}
+        verified={emailVerified}
+        pending={sending}
+        onVerify={handleRequestOtp}
       />
+
+      {otpStep && (
+        <form
+          onSubmit={handleConfirmOtp}
+          className="flex flex-col gap-3 rounded-lg border border-border bg-background px-4 py-3"
+        >
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="email-otp" className="text-sm font-medium text-foreground">
+              Verification code
+            </label>
+            <input
+              id="email-otp"
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+              placeholder="000000"
+              className="h-10 w-40 rounded-md border border-border bg-card px-3 text-center text-lg font-mono tracking-widest text-foreground focus:outline-none focus:ring-2 focus:ring-ring/50"
+            />
+            <p className="text-xs text-muted-foreground">
+              Enter the 6-digit code sent to {user.email}
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={verifying || otp.length < 6}
+              className="flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            >
+              {verifying ? <><Spinner /> Verifying…</> : <><KeyRound className="size-4" /> Verify email</>}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setOtpStep(false); setOtp(""); setError(null); }}
+              className="flex h-9 items-center rounded-lg border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
       <VerificationRow
         label="Phone number"
         value={user.phone_number ?? "Not set"}
@@ -327,12 +431,14 @@ function VerificationRow({
   value,
   verified,
   disabled,
+  pending,
   onVerify,
 }: {
   label: string;
   value: string;
   verified: boolean;
   disabled?: boolean;
+  pending?: boolean;
   onVerify: () => void;
 }) {
   return (
@@ -348,10 +454,10 @@ function VerificationRow({
       ) : (
         <button
           onClick={onVerify}
-          disabled={disabled}
-          className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled={disabled || pending}
+          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Verify now
+          {pending ? <><Spinner /> Sending…</> : "Verify now"}
         </button>
       )}
     </div>

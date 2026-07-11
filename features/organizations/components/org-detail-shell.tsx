@@ -17,11 +17,12 @@ import { cn } from "@/lib/utils";
 import type { OrganizationSummary, OrgMembership, OrgRole } from "@/lib/organizations/types";
 import { OrgOverviewTab } from "./org-overview-tab";
 import { OrgMembersTab } from "./org-members-tab";
+import { OrgTeamsTab } from "./org-teams-tab";
+import { OrgProjectsTab } from "./org-projects-tab";
 import { OrgSettingsTab } from "./org-settings-tab";
 import { InviteMemberModal } from "./invite-member-modal";
 import { ChangeRoleModal } from "./change-role-modal";
 import { TransferOwnershipModal } from "./transfer-ownership-modal";
-import { ComingSoon } from "@/features/shell/components/coming-soon";
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
@@ -53,12 +54,51 @@ export function OrgDetailShell({ org, currentUserEmail }: OrgDetailShellProps) {
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [changeRoleTarget, setChangeRoleTarget] = React.useState<OrgMembership | null>(null);
   const [transferTarget, setTransferTarget] = React.useState<OrgMembership | null>(null);
-  const [currentUserRole, setCurrentUserRole] = React.useState<OrgRole>("VIEWER");
+
+  // ── Role resolution — shell-level, independent of which tab is active ──────
+  // The organization owner is known authoritatively from the org record, so the
+  // settings/teams/projects tabs no longer show "read-only" until the Members
+  // tab is visited. For non-owners we resolve the precise role from membership.
+  const isOwnerByRecord = org.owner_email === currentUserEmail;
+  const [currentUserRole, setCurrentUserRole] = React.useState<OrgRole>(
+    isOwnerByRecord ? "OWNER" : "VIEWER",
+  );
+
+  // When the settings tab is opened from the overview "Delete organization"
+  // button, this asks it to auto-open the delete confirmation.
+  const [settingsAction, setSettingsAction] = React.useState<"delete" | null>(null);
+
+  React.useEffect(() => {
+    if (isOwnerByRecord) {
+      setCurrentUserRole("OWNER");
+      return;
+    }
+    let cancelled = false;
+    async function resolveRole() {
+      try {
+        const res = await fetch(`/api/organizations/${org.id}/members?page_size=100`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const members: OrgMembership[] = data.results?.data ?? [];
+        const match = members.find((m) => m.user_email === currentUserEmail);
+        if (!cancelled && match) setCurrentUserRole(match.role);
+      } catch {
+        // fail open — VIEWER (read-only) is the safe default
+      }
+    }
+    resolveRole();
+    return () => { cancelled = true; };
+  }, [org.id, currentUserEmail, isOwnerByRecord]);
 
   function setTab(tab: TabKey) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", tab);
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
+  function goToSettings(action?: "delete") {
+    setSettingsAction(action ?? null);
+    setTab("settings");
   }
 
   const initial = org.name.charAt(0).toUpperCase();
@@ -130,6 +170,10 @@ export function OrgDetailShell({ org, currentUserEmail }: OrgDetailShellProps) {
             org={org}
             currentUserEmail={currentUserEmail}
             onInvite={() => setInviteOpen(true)}
+            onCreateTeam={() => setTab("teams")}
+            onCreateProject={() => setTab("projects")}
+            onRename={() => goToSettings()}
+            onDelete={() => goToSettings("delete")}
           />
         )}
         {activeTab === "members" && (
@@ -143,23 +187,17 @@ export function OrgDetailShell({ org, currentUserEmail }: OrgDetailShellProps) {
           />
         )}
         {activeTab === "teams" && (
-          <ComingSoon
-            title="Teams"
-            description="View and manage all teams within this organization."
-            icon={Users}
-          />
+          <OrgTeamsTab org={org} currentUserRole={currentUserRole} />
         )}
         {activeTab === "projects" && (
-          <ComingSoon
-            title="Projects"
-            description="View all projects belonging to this organization."
-            icon={FolderKanban}
-          />
+          <OrgProjectsTab org={org} currentUserRole={currentUserRole} />
         )}
         {activeTab === "settings" && (
           <OrgSettingsTab
             org={org}
             currentUserRole={currentUserRole}
+            initialAction={settingsAction}
+            onInitialActionConsumed={() => setSettingsAction(null)}
           />
         )}
       </div>

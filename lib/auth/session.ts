@@ -8,7 +8,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 
-import { getAccessToken, clearAuthCookies } from "./tokens";
+import { getAccessToken, clearAuthCookies, refreshAccessToken } from "./tokens";
 import { getApiBaseUrl, LOGIN_PATH } from "./config";
 import type { AuthUser } from "./types";
 
@@ -26,16 +26,25 @@ export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
   const accessToken = await getAccessToken();
   if (!accessToken) return null;
 
-  try {
-    const res = await fetch(`${getApiBaseUrl()}/accounts/get-user/`, {
+  const baseUrl = getApiBaseUrl();
+  const fetchUser = (token: string) =>
+    fetch(`${baseUrl}/accounts/get-user/`, {
       method: "GET",
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
 
+  try {
+    let res = await fetchUser(accessToken);
+
     if (res.status === 401 || res.status === 403) {
-      await clearAuthCookies();
-      return null;
+      // Access token expired — refresh once and retry before giving up.
+      const newToken = await refreshAccessToken();
+      if (!newToken) {
+        await clearAuthCookies();
+        return null;
+      }
+      res = await fetchUser(newToken);
     }
 
     if (!res.ok) return null;

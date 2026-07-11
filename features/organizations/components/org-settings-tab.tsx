@@ -15,6 +15,7 @@ import {
   Lock,
   ChevronRight,
   Info,
+  Pencil,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -22,6 +23,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OrgRoleBadge } from "./org-role-badge";
+import { GovernanceEditModal } from "./governance-edit-modal";
+import { RolePermissionsEditModal } from "./role-permissions-edit-modal";
 import type { OrganizationSummary, OrgSettings, OrgRole } from "@/lib/organizations/types";
 
 // ─── Role hierarchy ───────────────────────────────────────────────────────────
@@ -54,11 +57,20 @@ type DeleteState =
 type OrgSettingsTabProps = {
   org: OrganizationSummary;
   currentUserRole: OrgRole;
+  /** When set to "delete", the danger-zone delete confirmation opens on mount. */
+  initialAction?: "delete" | null;
+  /** Called once the initial action has been applied, so it fires only once. */
+  onInitialActionConsumed?: () => void;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function OrgSettingsTab({ org, currentUserRole }: OrgSettingsTabProps) {
+export function OrgSettingsTab({
+  org,
+  currentUserRole,
+  initialAction,
+  onInitialActionConsumed,
+}: OrgSettingsTabProps) {
   const [fetchState, setFetchState] = React.useState<FetchState>({ status: "loading" });
 
   const canEdit = ROLE_LEVEL[currentUserRole] >= ROLE_LEVEL.ADMIN;
@@ -97,6 +109,8 @@ export function OrgSettingsTab({ org, currentUserRole }: OrgSettingsTabProps) {
       settings={fetchState.settings}
       canEdit={canEdit}
       isOwner={isOwner}
+      initialAction={initialAction}
+      onInitialActionConsumed={onInitialActionConsumed}
       onSettingsUpdated={(updated) =>
         setFetchState({ status: "success", settings: updated })
       }
@@ -111,12 +125,16 @@ function SettingsForm({
   settings,
   canEdit,
   isOwner,
+  initialAction,
+  onInitialActionConsumed,
   onSettingsUpdated,
 }: {
   org: OrganizationSummary;
   settings: OrgSettings;
   canEdit: boolean;
   isOwner: boolean;
+  initialAction?: "delete" | null;
+  onInitialActionConsumed?: () => void;
   onSettingsUpdated: (s: OrgSettings) => void;
 }) {
   const router = useRouter();
@@ -126,6 +144,12 @@ function SettingsForm({
   const [nameError, setNameError] = React.useState<string | null>(null);
   const [saveState, setSaveState] = React.useState<SaveState>({ status: "idle" });
 
+  // Governance editor
+  const [governanceOpen, setGovernanceOpen] = React.useState(false);
+
+  // Role permissions editor
+  const [rolePermsOpen, setRolePermsOpen] = React.useState(false);
+
   // Delete zone
   const [deleteState, setDeleteState] = React.useState<DeleteState>({ status: "idle" });
   const [deleteConfirm, setDeleteConfirm] = React.useState("");
@@ -133,6 +157,18 @@ function SettingsForm({
 
   const nameDirty = orgName.trim() !== org.name;
   const deleteMatches = deleteConfirm.trim() === org.name.trim();
+
+  // Auto-open the delete confirmation when navigated here from the overview
+  // "Delete organization" button.
+  React.useEffect(() => {
+    if (initialAction === "delete" && isOwner) {
+      setDeleteState({ status: "confirming" });
+      setDeleteConfirm("");
+      setTimeout(() => deleteInputRef.current?.focus(), 120);
+    }
+    if (initialAction) onInitialActionConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAction, isOwner]);
 
   // ── Save name ──────────────────────────────────────────────────────────────
 
@@ -286,9 +322,21 @@ function SettingsForm({
 
             {/* Role summary */}
             <div className="px-5 py-4">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Role permissions
-              </p>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Role permissions
+                </p>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => setRolePermsOpen(true)}
+                    className="flex items-center gap-1 text-xs font-medium text-primary hover:underline underline-offset-4"
+                  >
+                    <Pencil className="size-3" />
+                    Edit
+                  </button>
+                )}
+              </div>
               <div className="space-y-2">
                 <RolePermRow label="Invite members" role={settings.invite_member_min_role} />
                 <RolePermRow label="Update members" role={settings.update_member_min_role} />
@@ -390,14 +438,14 @@ function SettingsForm({
                   variant="outline"
                   size="sm"
                   className="gap-1.5"
-                  onClick={() => {}}  // Full governance editor — Phase 6
+                  onClick={() => setGovernanceOpen(true)}
                 >
                   <Settings className="size-3.5" />
                   Edit governance settings
                   <ChevronRight className="size-3.5 text-muted-foreground" />
                 </Button>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Full governance configuration is available in Phase 6.
+                  Update approval, creation, and membership rules for this organization.
                 </p>
               </div>
             )}
@@ -540,6 +588,30 @@ function SettingsForm({
           </div>
         )}
       </div>
+
+      {/* ── Governance editor ── */}
+      <GovernanceEditModal
+        open={governanceOpen}
+        orgId={org.id}
+        settings={settings}
+        onClose={() => setGovernanceOpen(false)}
+        onSaved={(updated) => {
+          setGovernanceOpen(false);
+          onSettingsUpdated(updated);
+        }}
+      />
+
+      {/* ── Role permissions editor ── */}
+      <RolePermissionsEditModal
+        open={rolePermsOpen}
+        orgId={org.id}
+        settings={settings}
+        onClose={() => setRolePermsOpen(false)}
+        onSaved={(updated) => {
+          setRolePermsOpen(false);
+          onSettingsUpdated(updated);
+        }}
+      />
     </div>
   );
 }
