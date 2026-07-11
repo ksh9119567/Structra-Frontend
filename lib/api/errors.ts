@@ -36,9 +36,18 @@ export class ApiError extends Error {
  * - { "email": ["user with this email already exists."] }
  * - { "non_field_errors": ["Unable to log in with provided credentials."] }
  * - { "password": ["This password is too short.", "This password is too common."] }
+ * - ["Invalid or expired OTP"] — a bare array, DRF's shape when a plain
+ *   `ValidationError("message")` is raised directly in view/service code
+ *   rather than from a serializer's `validate()`.
  */
 export function extractDetail(payload: unknown, fallback: string): string {
-  if (!payload || typeof payload !== "object") return fallback;
+  if (!payload) return fallback;
+
+  if (Array.isArray(payload)) {
+    return payload.length > 0 && typeof payload[0] === "string" ? payload[0] : fallback;
+  }
+
+  if (typeof payload !== "object") return fallback;
 
   const obj = payload as Record<string, unknown>;
 

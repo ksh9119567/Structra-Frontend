@@ -74,7 +74,6 @@ export function LoginForm({ className }: { className?: string }) {
 
     if (result.ok) {
       router.push(DASHBOARD_PATH);
-      router.refresh();
       return;
     }
 

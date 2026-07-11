@@ -1,6 +1,7 @@
 // Server-side fetch helper for talking to the FastAPI backend from Route
 // Handlers / Server Components. Not for use in the browser.
 import { getApiBaseUrl } from "@/lib/auth/config";
+import { refreshAccessToken } from "@/lib/auth/tokens";
 import { ApiError, extractDetail } from "./errors";
 
 type RequestOptions = {
@@ -19,6 +20,7 @@ async function request<T>(
   method: string,
   path: string,
   options: RequestOptions = {},
+  _isRetry = false,
 ): Promise<T> {
   const { token, json, form, headers = {}, signal } = options;
   const url = `${getApiBaseUrl()}${path}`;
@@ -59,6 +61,15 @@ async function request<T>(
   const payload = text ? safeJsonParse(text) : null;
 
   if (!response.ok) {
+    // The access token expired mid-session — refresh once and transparently
+    // retry the same request before surfacing a failure to the caller.
+    if (response.status === 401 && token && !_isRetry) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        return request<T>(method, path, { ...options, token: newToken }, true);
+      }
+    }
+
     throw new ApiError(
       extractDetail(payload, "Something went wrong. Please try again."),
       response.status,

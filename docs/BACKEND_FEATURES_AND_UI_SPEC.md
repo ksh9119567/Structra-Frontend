@@ -703,45 +703,45 @@ Shows full log: user, action, resource, HTTP method, path, query params, status 
 
 ## 9. Page Checklist
 
-### Already Built ✅
+> **Status as of July 2026.** ✅ = built & wired to the backend · 🟡 = built but partial /
+> mock in places · 🔜 = placeholder ("Coming Soon") screen only.
+
+### Built & wired ✅
 - [x] `/` — Marketing landing page
 - [x] `/login` — Login page
 - [x] `/signup` — Signup page
-- [x] `/dashboard` — Main dashboard (mock data, needs real API wiring)
-- [x] `/profile` — User profile edit
-- [x] `/settings` — Account settings + password change
+- [x] `/profile` — User profile edit (real API)
+- [x] `/settings` — Account settings + password change (OTP-verified) + delete account
+- [x] `/organizations` — Organizations list (create, search)
+- [x] `/organizations/[id]` — Org detail: **Overview, Members, Settings** tabs wired
+- [x] `/teams` — Teams list (create)
+- [x] `/teams/[id]` — Team detail: Overview, Members, Projects, Settings tabs
+- [x] `/projects` — Projects list (create, status filter)
+- [x] `/projects/[id]` — Project detail: Overview, Members, **Tasks (Kanban)**, Settings tabs
+- [x] `/tasks` — My Tasks list (cross-project) + task detail drawer
 
-### To Build 🔲
+### Built but partial 🟡
+- [~] `/dashboard` — Real summary stats, recent activity & my-tasks; **Pending Approvals card uses mock data**
+- [~] `/organizations/[id]` → **Teams** and **Projects** sub-tabs are "Coming Soon" placeholders
 
-#### High Priority (core functionality)
-- [ ] `/organizations` — Organizations list
-- [ ] `/organizations/[id]` — Org detail (Overview, Members, Teams, Projects, Settings tabs)
-- [ ] `/teams` — Teams list
-- [ ] `/teams/[id]` — Team detail (Overview, Members, Projects, Settings tabs)
-- [ ] `/projects` — Projects list
-- [ ] `/projects/[id]` — Project detail (Overview, Tasks kanban, Members, Settings tabs)
-- [ ] `/tasks` — My tasks list (cross-project)
+### Placeholder only — needs backend or UI work 🔜
+- [ ] `/activity` — "Coming Soon". Backend audit-log API exists; full feed/stats page not built yet
+- [ ] `/approvals` — "Coming Soon". **No backend approval engine exists** — sidebar badge count is hardcoded
+- [ ] OTP / passwordless login screen — backend supports it; no UI
+- [ ] Email-verification prompt — backend tracks status; no UI
 
-#### Medium Priority
-- [ ] `/activity` — Activity log feed + stats
-- [ ] `/approvals` — Pending approvals (governance)
-- [ ] `/organizations/[id]/settings` — Org governance settings
-- [ ] `/teams/[id]/settings` — Team governance settings
-- [ ] `/projects/[id]/settings` — Project governance settings
+### Governance settings
+Settings are edited **inside each detail page's Settings tab** (not separate routes):
+- [x] Org settings tab · [x] Team settings tab · [x] Project settings tab
+- ⚠️ Verify the backend settings-**update** endpoints end-to-end (they appear mapped to the
+  wrong HTTP verb) before relying on saving governance in production.
 
-#### Shared Components Needed
-- [ ] `InviteMemberModal` — reusable across org/team/project
-- [ ] `MembersTable` — reusable with role-gated actions
-- [ ] `TaskDrawer` — slide-over for task detail/edit
-- [ ] `CreateTaskModal` — reusable
-- [ ] `KanbanBoard` — drag-and-drop task board
-- [ ] `SettingsToggleGroup` — reusable governance settings form
-- [ ] `RoleBadge` — colored badge for all role types
-- [ ] `StatusBadge` — for project status and task status
-- [ ] `PriorityBadge` — for task priority
-- [ ] `ConfirmDialog` — for destructive actions (delete, remove, transfer)
-- [ ] `EmptyState` — reusable with icon + message + CTA
-- [ ] `Pagination` — reusable paginated list controls
+### Shared components — all built ✅
+- [x] `InviteMemberModal` (per org/team/project) · [x] `MembersTable` (role-gated actions)
+- [x] `TaskDetailDrawer` · [x] `CreateTaskModal` · [x] `KanbanBoard`
+- [x] Governance `settings-ui` toggle groups · [x] Role badges (org/team/project)
+- [x] `ProjectStatusBadge`, `TaskStatusBadge`, `TaskPriorityBadge`
+- [x] `ConfirmDialog` · [x] `StatCard` · [x] `FilterSelect` · [x] empty/loading states
 
 ---
 

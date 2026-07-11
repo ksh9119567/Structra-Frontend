@@ -111,7 +111,6 @@ export function SignupForm({ className }: { className?: string }) {
 
     if (result.ok) {
       router.push(DASHBOARD_PATH);
-      router.refresh();
       return;
     }
 
@@ -357,6 +356,8 @@ export function SignupForm({ className }: { className?: string }) {
         I agree to the{" "}
         <Link
           href="/terms"
+          target="_blank"
+          rel="noopener noreferrer"
           className="font-medium text-primary hover:underline underline-offset-4"
           tabIndex={-1}
         >
@@ -365,6 +366,8 @@ export function SignupForm({ className }: { className?: string }) {
         and{" "}
         <Link
           href="/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
           className="font-medium text-primary hover:underline underline-offset-4"
           tabIndex={-1}
         >
@@ -375,7 +378,7 @@ export function SignupForm({ className }: { className?: string }) {
       <Button
         type="submit"
         size="lg"
-        disabled={submitting}
+        disabled={submitting || !agreeTerms}
         className="mt-1 h-11 w-full justify-center text-sm"
       >
         {submitting ? (

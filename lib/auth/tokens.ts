@@ -61,9 +61,46 @@ export async function isAuthenticated(): Promise<boolean> {
 }
 
 /**
+ * Exchanges the refresh token cookie for a fresh access/refresh pair and
+ * rotates both cookies. This is what lets a session survive past the access
+ * token's 30-minute lifetime without forcing a full re-login, as long as the
+ * refresh token (7-day lifetime) is still valid.
+ *
+ * Returns the new access token on success. Returns null (and clears cookies)
+ * if there's no refresh token or the backend rejects it. On a network error
+ * it also returns null but leaves cookies alone, since that's likely
+ * transient rather than a genuinely invalid session.
+ */
+export async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = await getRefreshToken();
+  if (!refreshToken) return null;
+
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/accounts/token/refresh/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh: refreshToken }),
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      await clearAuthCookies();
+      return null;
+    }
+
+    const data: { access: string; refresh: string } = await res.json();
+    await setAuthCookies({ accessToken: data.access, refreshToken: data.refresh });
+    return data.access;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Validates the stored access token against the backend.
- * Returns true only if the backend confirms the token is valid.
- * Clears cookies if the token is rejected (401/403).
+ * Returns true only if the backend confirms the token is valid (refreshing
+ * once first if the access token has expired). Clears cookies if the
+ * refresh token is also rejected.
  */
 export async function verifySession(): Promise<boolean> {
   const accessToken = await getAccessToken();
@@ -78,8 +115,15 @@ export async function verifySession(): Promise<boolean> {
     });
 
     if (res.status === 401 || res.status === 403) {
-      await clearAuthCookies();
-      return false;
+      const newToken = await refreshAccessToken();
+      if (!newToken) return false;
+
+      const retryRes = await fetch(`${baseUrl}/accounts/get-user/`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${newToken}` },
+        cache: "no-store",
+      });
+      return retryRes.ok;
     }
 
     return res.ok;

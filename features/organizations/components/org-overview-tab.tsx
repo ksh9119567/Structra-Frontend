@@ -25,11 +25,23 @@ type OrgOverviewTabProps = {
   org: OrganizationSummary;
   currentUserEmail: string;
   onInvite?: () => void;
+  onCreateTeam?: () => void;
+  onCreateProject?: () => void;
+  onRename?: () => void;
+  onDelete?: () => void;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function OrgOverviewTab({ org, currentUserEmail, onInvite }: OrgOverviewTabProps) {
+export function OrgOverviewTab({
+  org,
+  currentUserEmail,
+  onInvite,
+  onCreateTeam,
+  onCreateProject,
+  onRename,
+  onDelete,
+}: OrgOverviewTabProps) {
   const [activityState, setActivityState] = React.useState<ActivityState>({
     status: "loading",
   });
@@ -75,7 +87,12 @@ export function OrgOverviewTab({ org, currentUserEmail, onInvite }: OrgOverviewT
           <StatCards org={org} />
 
           {/* Quick actions */}
-          <QuickActions orgId={org.id} isOwner={isOwner} onInvite={onInvite} />
+          <QuickActions
+            isOwner={isOwner}
+            onInvite={onInvite}
+            onCreateTeam={onCreateTeam}
+            onCreateProject={onCreateProject}
+          />
 
           {/* Activity feed */}
           <ActivitySection
@@ -88,7 +105,12 @@ export function OrgOverviewTab({ org, currentUserEmail, onInvite }: OrgOverviewT
         {/* ── Right column (1/3) ── */}
         <div className="flex flex-col gap-5">
           {/* Org summary card */}
-          <OrgSummaryCard org={org} isOwner={isOwner} />
+          <OrgSummaryCard
+            org={org}
+            isOwner={isOwner}
+            onRename={onRename}
+            onDelete={onDelete}
+          />
         </div>
       </div>
     </div>
@@ -136,7 +158,17 @@ function StatCards({ org }: { org: OrganizationSummary }) {
 
 // ─── Quick Actions ────────────────────────────────────────────────────────────
 
-function QuickActions({ orgId, isOwner, onInvite }: { orgId: string; isOwner: boolean; onInvite?: () => void }) {
+function QuickActions({
+  isOwner,
+  onInvite,
+  onCreateTeam,
+  onCreateProject,
+}: {
+  isOwner: boolean;
+  onInvite?: () => void;
+  onCreateTeam?: () => void;
+  onCreateProject?: () => void;
+}) {
   const actions = [
     {
       label: "Invite Member",
@@ -152,7 +184,7 @@ function QuickActions({ orgId, isOwner, onInvite }: { orgId: string; isOwner: bo
       icon: Users,
       color: "text-info",
       bg: "bg-info/10",
-      onClick: () => {},
+      onClick: onCreateTeam ?? (() => {}),
     },
     {
       label: "Create Project",
@@ -160,7 +192,7 @@ function QuickActions({ orgId, isOwner, onInvite }: { orgId: string; isOwner: bo
       icon: FolderKanban,
       color: "text-warning",
       bg: "bg-warning/10",
-      onClick: () => {},
+      onClick: onCreateProject ?? (() => {}),
     },
   ];
 
@@ -206,9 +238,13 @@ function QuickActions({ orgId, isOwner, onInvite }: { orgId: string; isOwner: bo
 function OrgSummaryCard({
   org,
   isOwner,
+  onRename,
+  onDelete,
 }: {
   org: OrganizationSummary;
   isOwner: boolean;
+  onRename?: () => void;
+  onDelete?: () => void;
 }) {
   const initial = org.name.charAt(0).toUpperCase();
 
@@ -264,6 +300,7 @@ function OrgSummaryCard({
             variant="outline"
             size="sm"
             className="w-full justify-start gap-2"
+            onClick={onRename}
           >
             <Pencil className="size-3.5" />
             Rename organization
@@ -272,6 +309,7 @@ function OrgSummaryCard({
             variant="destructive"
             size="sm"
             className="w-full justify-start gap-2"
+            onClick={onDelete}
           >
             <Trash2 className="size-3.5" />
             Delete organization
