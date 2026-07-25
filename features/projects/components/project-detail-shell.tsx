@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   Users,
+  Network,
   ChevronRight,
   LayoutDashboard,
   ListTodo,
@@ -16,22 +17,26 @@ import { cn } from "@/lib/utils";
 import { ProjectStatusBadge } from "@/features/shared/project-status-badge";
 import { ConfirmDialog } from "@/features/shared/confirm-dialog";
 import { FormErrorBanner } from "@/features/shared/members/member-ui";
-import type { ProjectSummary, ProjectRole, ProjectMembership } from "@/lib/projects/types";
+import type { ProjectSummary, ProjectRole, ProjectMembership, ProjectTeamLink } from "@/lib/projects/types";
 import { ProjectOverviewTab } from "./project-overview-tab";
 import { ProjectMembersTab } from "./project-members-tab";
+import { ProjectTeamsTab } from "./project-teams-tab";
 import { ProjectTasksTab } from "@/features/tasks/components/project-tasks-tab";
 import { ProjectSettingsTab } from "./project-settings-tab";
 import { InviteProjectMemberModal } from "./invite-project-member-modal";
 import { ChangeProjectRoleModal } from "./change-project-role-modal";
 import { TransferProjectOwnershipModal } from "./transfer-project-ownership-modal";
+import { AssignTeamModal } from "./assign-team-modal";
+import { ChangeTeamLinkModal } from "./change-team-link-modal";
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
-type TabKey = "overview" | "members" | "tasks" | "settings";
+type TabKey = "overview" | "members" | "teams" | "tasks" | "settings";
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "members",  label: "Members",  icon: Users },
+  { key: "teams",    label: "Teams",    icon: Network },
   { key: "tasks",    label: "Tasks",    icon: ListTodo },
   { key: "settings", label: "Settings", icon: Settings },
 ];
@@ -111,6 +116,38 @@ export function ProjectDetailShell({ project, currentUserEmail }: ProjectDetailS
       setRemoveError("Network error. Please check your connection.");
     } finally {
       setRemoving(false);
+    }
+  }
+
+  // ── Teams tab modal state ───────────────────────────────────────────────────
+  const [assignTeamOpen, setAssignTeamOpen] = React.useState(false);
+  const [changeTeamLinkTarget, setChangeTeamLinkTarget] = React.useState<ProjectTeamLink | null>(null);
+  const [unassignTeamTarget, setUnassignTeamTarget] = React.useState<ProjectTeamLink | null>(null);
+  const [unassigningTeam, setUnassigningTeam] = React.useState(false);
+  const [unassignTeamError, setUnassignTeamError] = React.useState<string | null>(null);
+  const [teamsRefreshKey, setTeamsRefreshKey] = React.useState(0);
+  const [assignedTeamIds, setAssignedTeamIds] = React.useState<string[]>([]);
+
+  async function handleUnassignTeamConfirm() {
+    if (!unassignTeamTarget) return;
+    setUnassigningTeam(true);
+    setUnassignTeamError(null);
+    try {
+      const res = await fetch(
+        `/api/projects/${project.id}/teams/${unassignTeamTarget.team}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setUnassignTeamError(data.message ?? "Failed to unassign team.");
+        return;
+      }
+      setUnassignTeamTarget(null);
+      setTeamsRefreshKey((k) => k + 1);
+    } catch {
+      setUnassignTeamError("Network error. Please check your connection.");
+    } finally {
+      setUnassigningTeam(false);
     }
   }
 
@@ -261,6 +298,17 @@ export function ProjectDetailShell({ project, currentUserEmail }: ProjectDetailS
             refreshKey={membersRefreshKey}
           />
         )}
+        {activeTab === "teams" && (
+          <ProjectTeamsTab
+            project={project}
+            currentUserRole={currentUserRole}
+            onAssignTeam={() => setAssignTeamOpen(true)}
+            onChangeTeamLink={(link) => setChangeTeamLinkTarget(link)}
+            onUnassignTeam={(link) => setUnassignTeamTarget(link)}
+            onTeamsResolved={setAssignedTeamIds}
+            refreshKey={teamsRefreshKey}
+          />
+        )}
         {activeTab === "tasks" && (
           <ProjectTasksTab project={project} currentUserRole={currentUserRole} />
         )}
@@ -279,6 +327,7 @@ export function ProjectDetailShell({ project, currentUserEmail }: ProjectDetailS
         projectId={project.id}
         projectName={project.name}
         onClose={() => setInviteOpen(false)}
+        onInvited={() => setMembersRefreshKey((k) => k + 1)}
       />
       <ChangeProjectRoleModal
         open={changeRoleTarget !== null}
@@ -316,6 +365,39 @@ export function ProjectDetailShell({ project, currentUserEmail }: ProjectDetailS
         icon="user-minus"
         loading={removing}
         onConfirm={handleRemoveConfirm}
+      />
+      <AssignTeamModal
+        open={assignTeamOpen}
+        projectId={project.id}
+        projectName={project.name}
+        projectOrganizationId={project.organization}
+        existingTeamIds={assignedTeamIds}
+        onClose={() => setAssignTeamOpen(false)}
+        onAssigned={() => setTeamsRefreshKey((k) => k + 1)}
+      />
+      <ChangeTeamLinkModal
+        open={changeTeamLinkTarget !== null}
+        projectId={project.id}
+        link={changeTeamLinkTarget}
+        onClose={() => setChangeTeamLinkTarget(null)}
+        onChanged={() => setTeamsRefreshKey((k) => k + 1)}
+      />
+      <ConfirmDialog
+        open={unassignTeamTarget !== null}
+        onOpenChange={(open) => { if (!open) { setUnassignTeamTarget(null); setUnassignTeamError(null); } }}
+        title="Unassign team?"
+        description={
+          <>
+            Members of <span className="font-medium text-foreground">{unassignTeamTarget?.team_name}</span>{" "}
+            will lose team-derived access to this project immediately.
+          </>
+        }
+        detail={unassignTeamError ? <FormErrorBanner message={unassignTeamError} /> : undefined}
+        confirmLabel="Unassign"
+        variant="destructive"
+        icon="user-minus"
+        loading={unassigningTeam}
+        onConfirm={handleUnassignTeamConfirm}
       />
     </div>
   );

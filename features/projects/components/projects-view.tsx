@@ -13,9 +13,12 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { ProjectCard } from "@/features/shared/project-card";
+import { MembersTablePagination } from "@/features/shared/members/members-table-ui";
 import type { ProjectSummary, ProjectStatus } from "@/lib/projects/types";
 import { ALL_PROJECT_STATUSES, PROJECT_STATUS_META } from "@/lib/projects/types";
 import { CreateProjectModal } from "./create-project-modal";
+
+const PAGE_SIZE = 12;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +36,7 @@ export function ProjectsView() {
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<ProjectStatus | "">("");
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [page, setPage] = React.useState(1);
 
   // Debounce search
   React.useEffect(() => {
@@ -40,11 +44,14 @@ export function ProjectsView() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Reset to page 1 when filters change
+  React.useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter]);
+
   // Fetch projects
   const fetchProjects = React.useCallback(async () => {
     setFetchState({ status: "loading" });
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (statusFilter) params.set("status", statusFilter);
 
@@ -61,7 +68,7 @@ export function ProjectsView() {
     } catch {
       setFetchState({ status: "error", message: "Network error. Please try again." });
     }
-  }, [debouncedSearch, statusFilter]);
+  }, [page, debouncedSearch, statusFilter]);
 
   React.useEffect(() => {
     fetchProjects();
@@ -69,9 +76,10 @@ export function ProjectsView() {
 
   function handleCreated(project: ProjectSummary) {
     setCreateOpen(false);
-    // Optimistically prepend the new project
+    // Optimistically prepend the new project (only meaningful on page 1)
     setFetchState((prev) => {
       if (prev.status !== "success") return prev;
+      if (page !== 1) return { ...prev, total: prev.total + 1 };
       return { ...prev, projects: [project, ...prev.projects], total: prev.total + 1 };
     });
   }
@@ -164,7 +172,23 @@ export function ProjectsView() {
             onCreate={() => setCreateOpen(true)}
           />
         )}
-        {!isLoading && !isError && !isEmpty && <ProjectGrid projects={projects} />}
+        {!isLoading && !isError && !isEmpty && (
+          <>
+            <ProjectGrid projects={projects} />
+            {fetchState.status === "success" && fetchState.total > PAGE_SIZE && (
+              <div className="mt-4 rounded-xl border border-border bg-card">
+                <MembersTablePagination
+                  page={page}
+                  totalPages={Math.max(1, Math.ceil(fetchState.total / PAGE_SIZE))}
+                  total={fetchState.total}
+                  pageSize={PAGE_SIZE}
+                  onPrev={() => setPage((p) => p - 1)}
+                  onNext={() => setPage((p) => p + 1)}
+                />
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <CreateProjectModal

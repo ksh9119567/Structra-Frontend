@@ -16,9 +16,12 @@ import {
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { MembersTablePagination } from "@/features/shared/members/members-table-ui";
 import type { TeamSummary } from "@/lib/teams/types";
 import { CreateTeamModal } from "./create-team-modal";
 import { TeamRoleBadge } from "./team-role-badge";
+
+const PAGE_SIZE = 12;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +38,7 @@ export function TeamsView() {
   const [search, setSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [page, setPage] = React.useState(1);
 
   // Debounce search
   React.useEffect(() => {
@@ -42,11 +46,14 @@ export function TeamsView() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Reset to page 1 when the search changes
+  React.useEffect(() => { setPage(1); }, [debouncedSearch]);
+
   // Fetch teams
-  const fetchTeams = React.useCallback(async (searchTerm: string) => {
+  const fetchTeams = React.useCallback(async (searchTerm: string, pageNum: number) => {
     setFetchState({ status: "loading" });
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ page: String(pageNum), page_size: String(PAGE_SIZE) });
       if (searchTerm) params.set("search", searchTerm);
       const res = await fetch(`/api/teams?${params.toString()}`);
       const data = await res.json();
@@ -64,14 +71,15 @@ export function TeamsView() {
   }, []);
 
   React.useEffect(() => {
-    fetchTeams(debouncedSearch);
-  }, [debouncedSearch, fetchTeams]);
+    fetchTeams(debouncedSearch, page);
+  }, [debouncedSearch, page, fetchTeams]);
 
   function handleCreated(team: TeamSummary) {
     setCreateOpen(false);
-    // Optimistically prepend the new team
+    // Optimistically prepend the new team (only meaningful on page 1)
     setFetchState((prev) => {
       if (prev.status !== "success") return prev;
+      if (page !== 1) return { ...prev, total: prev.total + 1 };
       return { ...prev, teams: [team, ...prev.teams], total: prev.total + 1 };
     });
   }
@@ -136,7 +144,7 @@ export function TeamsView() {
         {isError && (
           <ErrorState
             message={(fetchState as { status: "error"; message: string }).message}
-            onRetry={() => fetchTeams(debouncedSearch)}
+            onRetry={() => fetchTeams(debouncedSearch, page)}
           />
         )}
         {isEmpty && (
@@ -146,7 +154,23 @@ export function TeamsView() {
             onCreate={() => setCreateOpen(true)}
           />
         )}
-        {!isLoading && !isError && !isEmpty && <TeamGrid teams={teams} />}
+        {!isLoading && !isError && !isEmpty && (
+          <>
+            <TeamGrid teams={teams} />
+            {fetchState.status === "success" && fetchState.total > PAGE_SIZE && (
+              <div className="mt-4 rounded-xl border border-border bg-card">
+                <MembersTablePagination
+                  page={page}
+                  totalPages={Math.max(1, Math.ceil(fetchState.total / PAGE_SIZE))}
+                  total={fetchState.total}
+                  pageSize={PAGE_SIZE}
+                  onPrev={() => setPage((p) => p - 1)}
+                  onNext={() => setPage((p) => p + 1)}
+                />
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <CreateTeamModal

@@ -32,12 +32,10 @@ import type { ProjectMembership, ProjectRole, ProjectSummary } from "@/lib/proje
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PROJECT_ROLES: ProjectRole[] = ["OWNER", "MANAGER", "LEAD", "CONTRIBUTOR", "VIEWER"];
+const PROJECT_ROLES: ProjectRole[] = ["OWNER", "MANAGER", "LEAD", "CONTRIBUTOR", "VIEWER", "GUEST"];
 const PAGE_SIZE = 10;
 
-const ROLE_LEVEL: Record<ProjectRole, number> = {
-  OWNER: 5, MANAGER: 4, LEAD: 3, CONTRIBUTOR: 2, VIEWER: 1,
-};
+import { PROJECT_ROLE_LEVEL as ROLE_LEVEL } from "@/lib/roles";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

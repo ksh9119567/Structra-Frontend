@@ -22,6 +22,10 @@ const ROLE_STYLES: Record<ProjectRole, { label: string; className: string }> = {
     label: "Viewer",
     className: "bg-muted text-muted-foreground/70",
   },
+  GUEST: {
+    label: "Guest",
+    className: "bg-muted/60 text-muted-foreground/60 ring-1 ring-inset ring-border",
+  },
 };
 
 type ProjectRoleBadgeProps = {

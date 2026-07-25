@@ -24,9 +24,7 @@ import type { TeamMembership, TeamRole } from "@/lib/teams/types";
 
 // ─── Role hierarchy ───────────────────────────────────────────────────────────
 
-const ROLE_LEVEL: Record<TeamRole, number> = {
-  OWNER: 5, MANAGER: 4, LEAD: 3, MEMBER: 2, VIEWER: 1,
-};
+import { TEAM_ROLE_LEVEL as ROLE_LEVEL } from "@/lib/roles";
 
 type RoleMeta = {
   value: TeamRole;

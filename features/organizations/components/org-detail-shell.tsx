@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/features/shared/confirm-dialog";
+import { FormErrorBanner } from "@/features/shared/members/member-ui";
 import type { OrganizationSummary, OrgMembership, OrgRole } from "@/lib/organizations/types";
 import { OrgOverviewTab } from "./org-overview-tab";
 import { OrgMembersTab } from "./org-members-tab";
@@ -54,6 +56,33 @@ export function OrgDetailShell({ org, currentUserEmail }: OrgDetailShellProps) {
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [changeRoleTarget, setChangeRoleTarget] = React.useState<OrgMembership | null>(null);
   const [transferTarget, setTransferTarget] = React.useState<OrgMembership | null>(null);
+  const [removeTarget, setRemoveTarget] = React.useState<OrgMembership | null>(null);
+  const [removing, setRemoving] = React.useState(false);
+  const [removeError, setRemoveError] = React.useState<string | null>(null);
+  const [membersRefreshKey, setMembersRefreshKey] = React.useState(0);
+
+  async function handleRemoveConfirm() {
+    if (!removeTarget) return;
+    setRemoving(true);
+    setRemoveError(null);
+    try {
+      const res = await fetch(
+        `/api/organizations/${org.id}/members/${encodeURIComponent(removeTarget.user_email)}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setRemoveError(data.message ?? "Failed to remove member.");
+        return;
+      }
+      setRemoveTarget(null);
+      setMembersRefreshKey((k) => k + 1);
+    } catch {
+      setRemoveError("Network error. Please check your connection.");
+    } finally {
+      setRemoving(false);
+    }
+  }
 
   // ── Role resolution — shell-level, independent of which tab is active ──────
   // The organization owner is known authoritatively from the org record, so the
@@ -183,7 +212,9 @@ export function OrgDetailShell({ org, currentUserEmail }: OrgDetailShellProps) {
             onInvite={() => setInviteOpen(true)}
             onChangeRole={(member) => setChangeRoleTarget(member)}
             onTransferOwnership={(member) => setTransferTarget(member)}
+            onRemoveMember={(member) => setRemoveTarget(member)}
             onCurrentUserRoleResolved={setCurrentUserRole}
+            refreshKey={membersRefreshKey}
           />
         )}
         {activeTab === "teams" && (
@@ -208,6 +239,7 @@ export function OrgDetailShell({ org, currentUserEmail }: OrgDetailShellProps) {
         orgId={org.id}
         orgName={org.name}
         onClose={() => setInviteOpen(false)}
+        onInvited={() => setMembersRefreshKey((k) => k + 1)}
       />
       <ChangeRoleModal
         open={changeRoleTarget !== null}
@@ -215,6 +247,7 @@ export function OrgDetailShell({ org, currentUserEmail }: OrgDetailShellProps) {
         member={changeRoleTarget}
         currentUserRole={currentUserRole}
         onClose={() => setChangeRoleTarget(null)}
+        onRoleChanged={() => setMembersRefreshKey((k) => k + 1)}
       />
       <TransferOwnershipModal
         open={transferTarget !== null}
@@ -223,6 +256,27 @@ export function OrgDetailShell({ org, currentUserEmail }: OrgDetailShellProps) {
         member={transferTarget}
         currentOwnerEmail={currentUserEmail}
         onClose={() => setTransferTarget(null)}
+        onTransferred={() => {
+          setCurrentUserRole("ADMIN");
+          setMembersRefreshKey((k) => k + 1);
+        }}
+      />
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => { if (!open) { setRemoveTarget(null); setRemoveError(null); } }}
+        title="Remove member?"
+        description={
+          <>
+            <span className="font-medium text-foreground">{removeTarget?.user_email}</span>{" "}
+            will lose access to this organization immediately.
+          </>
+        }
+        detail={removeError ? <FormErrorBanner message={removeError} /> : undefined}
+        confirmLabel="Remove"
+        variant="destructive"
+        icon="user-minus"
+        loading={removing}
+        onConfirm={handleRemoveConfirm}
       />
     </div>
   );

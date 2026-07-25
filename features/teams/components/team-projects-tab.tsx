@@ -17,9 +17,12 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ProjectStatusBadge } from "@/features/shared/project-status-badge";
+import { MembersTablePagination } from "@/features/shared/members/members-table-ui";
 import type { ProjectSummary, ProjectStatus } from "@/lib/projects/types";
 import { ALL_PROJECT_STATUSES, PROJECT_STATUS_META } from "@/lib/projects/types";
 import type { TeamSummary, TeamRole } from "@/lib/teams/types";
+
+const PAGE_SIZE = 12;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,9 +39,7 @@ type TeamProjectsTabProps = {
 
 // ─── Role gate ────────────────────────────────────────────────────────────────
 
-const ROLE_LEVEL: Record<TeamRole, number> = {
-  OWNER: 5, MANAGER: 4, LEAD: 3, MEMBER: 2, VIEWER: 1,
-};
+import { TEAM_ROLE_LEVEL as ROLE_LEVEL } from "@/lib/roles";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ export function TeamProjectsTab({
   const [search, setSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<ProjectStatus | "">("");
+  const [page, setPage] = React.useState(1);
 
   const canCreateProject = ROLE_LEVEL[currentUserRole] >= ROLE_LEVEL.MANAGER;
 
@@ -60,11 +62,14 @@ export function TeamProjectsTab({
     return () => clearTimeout(t);
   }, [search]);
 
+  // Reset to page 1 when filters change
+  React.useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter]);
+
   // Fetch projects
   const fetchProjects = React.useCallback(async () => {
     setFetchState({ status: "loading" });
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (statusFilter) params.set("status", statusFilter);
 
@@ -81,7 +86,7 @@ export function TeamProjectsTab({
     } catch {
       setFetchState({ status: "error", message: "Network error. Please try again." });
     }
-  }, [team.id, debouncedSearch, statusFilter]);
+  }, [team.id, page, debouncedSearch, statusFilter]);
 
   React.useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
@@ -173,7 +178,21 @@ export function TeamProjectsTab({
       )}
 
       {!isLoading && !isError && !isEmpty && (
-        <ProjectGrid projects={projects} />
+        <>
+          <ProjectGrid projects={projects} />
+          {fetchState.status === "success" && fetchState.total > PAGE_SIZE && (
+            <div className="mt-4 rounded-xl border border-border bg-card">
+              <MembersTablePagination
+                page={page}
+                totalPages={Math.max(1, Math.ceil(fetchState.total / PAGE_SIZE))}
+                total={fetchState.total}
+                pageSize={PAGE_SIZE}
+                onPrev={() => setPage((p) => p - 1)}
+                onNext={() => setPage((p) => p + 1)}
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   );
