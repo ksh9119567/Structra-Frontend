@@ -18,8 +18,9 @@ export type ProjectSummary = {
   description: string;
   organization: string | null;       // UUID or null
   organization_name: string | null;
-  team: string | null;               // UUID or null
+  team: string | null;               // UUID or null - the OWNING team only
   team_name: string | null;
+  team_role: ProjectRole | null;     // the owning team's link role
   status: ProjectStatus;
   created_by: string;                // UUID
   created_by_email: string;
@@ -27,8 +28,12 @@ export type ProjectSummary = {
   created_at: string;                // ISO datetime
 };
 
-/** The current user's role inside a specific project. */
-export type ProjectRole = "OWNER" | "MANAGER" | "LEAD" | "CONTRIBUTOR" | "VIEWER";
+/**
+ * The current user's role inside a specific project. GUEST is the floor
+ * role for external collaborators — an explicit-membership-only concept,
+ * never assignable to a team link (see TEAM_ASSIGNABLE_ROLES in lib/roles.ts).
+ */
+export type ProjectRole = "OWNER" | "MANAGER" | "LEAD" | "CONTRIBUTOR" | "VIEWER" | "GUEST";
 
 /** A single membership record returned by get-project-members. */
 export type ProjectMembership = {
@@ -36,6 +41,21 @@ export type ProjectMembership = {
   user_email: string;
   role: ProjectRole;
   joined_at: string;    // ISO datetime
+};
+
+/**
+ * A team assigned to a project, carrying its own role. Team members
+ * inherit this role dynamically - never written into ProjectMembership.
+ * Returned by GET /api/projects/[id]/teams.
+ */
+export type ProjectTeamLink = {
+  team: string;                    // UUID
+  team_name: string;
+  role: ProjectRole;                // restricted to TEAM_ASSIGNABLE_ROLES
+  is_owning: boolean;
+  assigned_by: string | null;       // UUID
+  assigned_by_email?: string;       // absent (not null) when assigned_by is null
+  created_at: string;               // ISO datetime
 };
 
 /** Visual metadata for each project status — used by ProjectStatusBadge. */

@@ -37,3 +37,42 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ message: "Unexpected error." }, { status: 500 });
   }
 }
+
+/**
+ * BFF: Update project governance settings.
+ * PUT /api/projects/[id]/settings
+ * Body: partial ProjectSettings — only 6 fields are actually writable
+ * (invite/update/remove_member_min_role, create/update/delete_task_min_role);
+ * the backend silently ignores anything else, so this is a raw passthrough
+ * matching the org/team settings routes.
+ * Proxies to DRF PUT /api/v1/governance/update-project-settings/?project_id=<id>
+ * Restricted to the project OWNER (and org owner) by the backend.
+ */
+export async function PUT(request: NextRequest, { params }: RouteContext) {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    return NextResponse.json({ message: "Unauthenticated" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ message: "Invalid request body." }, { status: 400 });
+  }
+
+  try {
+    const result = await serverApi.put<{ message: string; data: ProjectSettings }>(
+      `/governance/update-project-settings/?project_id=${id}`,
+      { token: accessToken, json: body },
+    );
+    return NextResponse.json(result.data);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return NextResponse.json({ message: error.message }, { status: error.status });
+    }
+    return NextResponse.json({ message: "Unexpected error." }, { status: 500 });
+  }
+}

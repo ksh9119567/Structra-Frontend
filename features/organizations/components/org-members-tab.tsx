@@ -37,9 +37,7 @@ const ORG_ROLES: OrgRole[] = ["OWNER", "ADMIN", "MANAGER", "MEMBER", "VIEWER"];
 const PAGE_SIZE = 10;
 
 // Role hierarchy — used to determine what actions the current user can take
-const ROLE_LEVEL: Record<OrgRole, number> = {
-  OWNER: 5, ADMIN: 4, MANAGER: 3, MEMBER: 2, VIEWER: 1,
-};
+import { ORG_ROLE_LEVEL as ROLE_LEVEL } from "@/lib/roles";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,6 +62,8 @@ type OrgMembersTabProps = {
   onRemoveMember?: (member: OrgMembership) => void;
   /** Fires once the current user's role is resolved from the member list */
   onCurrentUserRoleResolved?: (role: OrgRole) => void;
+  /** Bump this value to force a re-fetch of the members list (e.g. after a mutation). */
+  refreshKey?: number;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -76,6 +76,7 @@ export function OrgMembersTab({
   onTransferOwnership,
   onRemoveMember,
   onCurrentUserRoleResolved,
+  refreshKey = 0,
 }: OrgMembersTabProps) {
   const [fetchState, setFetchState] = React.useState<FetchState>({ status: "loading" });
   const [search, setSearch] = React.useState("");
@@ -121,7 +122,7 @@ export function OrgMembersTab({
     }
   }, [org.id, page, debouncedSearch, roleFilter, sortField, sortDir]);
 
-  React.useEffect(() => { fetchMembers(); }, [fetchMembers]);
+  React.useEffect(() => { fetchMembers(); }, [fetchMembers, refreshKey]);
 
   // Determine current user's role for permission checks
   const currentUserRole: OrgRole =

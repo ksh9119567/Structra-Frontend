@@ -27,6 +27,7 @@ const INVITABLE_ROLES: { value: ProjectRole; label: string; description: string 
   { value: "LEAD",        label: "Lead",        description: "Assign and oversee tasks" },
   { value: "CONTRIBUTOR", label: "Contributor", description: "Work on assigned tasks" },
   { value: "VIEWER",      label: "Viewer",      description: "Read-only access" },
+  { value: "GUEST",       label: "Guest",       description: "Limited access for external collaborators" },
 ];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

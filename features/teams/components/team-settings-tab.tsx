@@ -17,6 +17,7 @@ import {
   Calendar,
   Info,
   GitMerge,
+  LogOut,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -29,9 +30,7 @@ import type { TeamSummary, TeamSettings, TeamRole } from "@/lib/teams/types";
 
 // ─── Role hierarchy ───────────────────────────────────────────────────────────
 
-const ROLE_LEVEL: Record<TeamRole, number> = {
-  OWNER: 5, MANAGER: 4, LEAD: 3, MEMBER: 2, VIEWER: 1,
-};
+import { TEAM_ROLE_LEVEL as ROLE_LEVEL } from "@/lib/roles";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -126,6 +125,31 @@ function SettingsForm({
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
+
+  // Danger zone — leave (non-owners only, backend blocks the owner)
+  const [leaveOpen, setLeaveOpen] = React.useState(false);
+  const [leaving, setLeaving] = React.useState(false);
+  const [leaveError, setLeaveError] = React.useState<string | null>(null);
+
+  async function handleLeave() {
+    setLeaving(true);
+    setLeaveError(null);
+    try {
+      const res = await fetch(`/api/teams/${team.id}/leave`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        setLeaveError(data.message ?? "Failed to leave team.");
+        setLeaving(false);
+        return;
+      }
+      setLeaveOpen(false);
+      router.push("/teams");
+      router.refresh();
+    } catch {
+      setLeaveError("Network error. Please try again.");
+      setLeaving(false);
+    }
+  }
 
   const nameDirty = teamName.trim() !== team.name;
   const descDirty = teamDescription.trim() !== (team.description ?? "");
@@ -393,6 +417,39 @@ function SettingsForm({
             </div>
           </div>
         )}
+
+        {/* ── Leave team (non-owners only) ── */}
+        {!isOwner && (
+          <div className="rounded-xl border border-destructive/30 bg-card overflow-hidden">
+            <div className="flex items-center gap-3 border-b border-destructive/20 bg-destructive/5 px-5 py-4">
+              <LogOut className="size-4 text-destructive" />
+              <div>
+                <h3 className="text-sm font-semibold text-destructive">Danger Zone</h3>
+                <p className="text-xs text-muted-foreground">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="space-y-4 p-5">
+              {leaveError && <InlineBanner type="error" message={leaveError} />}
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Leave this team</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    You will lose access to this team immediately.
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="shrink-0 gap-1.5"
+                  onClick={() => { setLeaveError(null); setLeaveOpen(true); }}
+                >
+                  <LogOut className="size-3.5" />
+                  Leave
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Delete confirm dialog ── */}
@@ -422,6 +479,24 @@ function SettingsForm({
         variant="destructive"
         loading={deleting}
         onConfirm={handleDelete}
+      />
+
+      {/* ── Leave confirm dialog ── */}
+      <ConfirmDialog
+        open={leaveOpen}
+        onOpenChange={(open) => { if (!leaving) setLeaveOpen(open); }}
+        title="Leave this team?"
+        description={
+          <>
+            You will lose access to{" "}
+            <span className="font-semibold text-foreground">{team.name}</span> immediately.
+          </>
+        }
+        confirmLabel="Leave"
+        icon="user-minus"
+        variant="destructive"
+        loading={leaving}
+        onConfirm={handleLeave}
       />
     </div>
   );

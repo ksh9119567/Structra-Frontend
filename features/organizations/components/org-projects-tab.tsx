@@ -19,9 +19,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ProjectStatusBadge } from "@/features/shared/project-status-badge";
 import { CreateProjectModal } from "@/features/projects/components/create-project-modal";
+import { MembersTablePagination } from "@/features/shared/members/members-table-ui";
 import type { ProjectSummary, ProjectStatus } from "@/lib/projects/types";
 import { ALL_PROJECT_STATUSES, PROJECT_STATUS_META } from "@/lib/projects/types";
 import type { OrganizationSummary, OrgRole } from "@/lib/organizations/types";
+
+const PAGE_SIZE = 12;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -38,9 +41,7 @@ type OrgProjectsTabProps = {
 // ─── Role gate ────────────────────────────────────────────────────────────────
 // Default org policy requires ADMIN to create a project; owners always qualify.
 
-const ROLE_LEVEL: Record<OrgRole, number> = {
-  OWNER: 5, ADMIN: 4, MANAGER: 3, MEMBER: 2, VIEWER: 1,
-};
+import { ORG_ROLE_LEVEL as ROLE_LEVEL } from "@/lib/roles";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ export function OrgProjectsTab({ org, currentUserRole }: OrgProjectsTabProps) {
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<ProjectStatus | "">("");
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [page, setPage] = React.useState(1);
 
   const canCreateProject = ROLE_LEVEL[currentUserRole] >= ROLE_LEVEL.ADMIN;
 
@@ -60,11 +62,14 @@ export function OrgProjectsTab({ org, currentUserRole }: OrgProjectsTabProps) {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Reset to page 1 when filters change
+  React.useEffect(() => { setPage(1); }, [debouncedSearch, statusFilter]);
+
   // Fetch projects
   const fetchProjects = React.useCallback(async () => {
     setFetchState({ status: "loading" });
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (statusFilter) params.set("status", statusFilter);
 
@@ -81,7 +86,7 @@ export function OrgProjectsTab({ org, currentUserRole }: OrgProjectsTabProps) {
     } catch {
       setFetchState({ status: "error", message: "Network error. Please try again." });
     }
-  }, [org.id, debouncedSearch, statusFilter]);
+  }, [org.id, page, debouncedSearch, statusFilter]);
 
   React.useEffect(() => { fetchProjects(); }, [fetchProjects]);
 
@@ -169,7 +174,23 @@ export function OrgProjectsTab({ org, currentUserRole }: OrgProjectsTabProps) {
         />
       )}
 
-      {!isLoading && !isError && !isEmpty && <ProjectGrid projects={projects} />}
+      {!isLoading && !isError && !isEmpty && (
+        <>
+          <ProjectGrid projects={projects} />
+          {fetchState.status === "success" && fetchState.total > PAGE_SIZE && (
+            <div className="mt-4 rounded-xl border border-border bg-card">
+              <MembersTablePagination
+                page={page}
+                totalPages={Math.max(1, Math.ceil(fetchState.total / PAGE_SIZE))}
+                total={fetchState.total}
+                pageSize={PAGE_SIZE}
+                onPrev={() => setPage((p) => p - 1)}
+                onNext={() => setPage((p) => p + 1)}
+              />
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── Create modal ── */}
       <CreateProjectModal

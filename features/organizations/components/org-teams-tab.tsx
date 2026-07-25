@@ -17,8 +17,11 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CreateTeamModal } from "@/features/teams/components/create-team-modal";
+import { MembersTablePagination } from "@/features/shared/members/members-table-ui";
 import type { TeamSummary } from "@/lib/teams/types";
 import type { OrganizationSummary, OrgRole } from "@/lib/organizations/types";
+
+const PAGE_SIZE = 12;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,9 +38,7 @@ type OrgTeamsTabProps = {
 // ─── Role gate ────────────────────────────────────────────────────────────────
 // Default org policy requires ADMIN to create a team; owners always qualify.
 
-const ROLE_LEVEL: Record<OrgRole, number> = {
-  OWNER: 5, ADMIN: 4, MANAGER: 3, MEMBER: 2, VIEWER: 1,
-};
+import { ORG_ROLE_LEVEL as ROLE_LEVEL } from "@/lib/roles";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ export function OrgTeamsTab({ org, currentUserRole }: OrgTeamsTabProps) {
   const [search, setSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [page, setPage] = React.useState(1);
 
   const canCreateTeam = ROLE_LEVEL[currentUserRole] >= ROLE_LEVEL.ADMIN;
 
@@ -56,11 +58,14 @@ export function OrgTeamsTab({ org, currentUserRole }: OrgTeamsTabProps) {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Reset to page 1 when the search changes
+  React.useEffect(() => { setPage(1); }, [debouncedSearch]);
+
   // Fetch teams
   const fetchTeams = React.useCallback(async () => {
     setFetchState({ status: "loading" });
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
       if (debouncedSearch) params.set("search", debouncedSearch);
 
       const res = await fetch(`/api/organizations/${org.id}/teams?${params.toString()}`);
@@ -76,7 +81,7 @@ export function OrgTeamsTab({ org, currentUserRole }: OrgTeamsTabProps) {
     } catch {
       setFetchState({ status: "error", message: "Network error. Please try again." });
     }
-  }, [org.id, debouncedSearch]);
+  }, [org.id, page, debouncedSearch]);
 
   React.useEffect(() => { fetchTeams(); }, [fetchTeams]);
 
@@ -146,7 +151,23 @@ export function OrgTeamsTab({ org, currentUserRole }: OrgTeamsTabProps) {
         />
       )}
 
-      {!isLoading && !isError && !isEmpty && <TeamGrid teams={teams} />}
+      {!isLoading && !isError && !isEmpty && (
+        <>
+          <TeamGrid teams={teams} />
+          {fetchState.status === "success" && fetchState.total > PAGE_SIZE && (
+            <div className="mt-4 rounded-xl border border-border bg-card">
+              <MembersTablePagination
+                page={page}
+                totalPages={Math.max(1, Math.ceil(fetchState.total / PAGE_SIZE))}
+                total={fetchState.total}
+                pageSize={PAGE_SIZE}
+                onPrev={() => setPage((p) => p - 1)}
+                onNext={() => setPage((p) => p + 1)}
+              />
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── Create modal ── */}
       <CreateTeamModal

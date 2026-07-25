@@ -21,6 +21,9 @@ import {
   GitMerge,
   RefreshCw,
   AlertCircle,
+  LogOut,
+  Pencil,
+  ChevronRight,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -40,6 +43,7 @@ import {
   InheritanceBadge,
 } from "@/features/shared/settings/settings-ui";
 import { ProjectRoleBadge } from "./project-role-badge";
+import { ProjectRolePermissionsEditModal } from "./role-permissions-edit-modal";
 import {
   ALL_PROJECT_STATUSES,
   PROJECT_STATUS_META,
@@ -165,6 +169,9 @@ export function ProjectSettingsTab({
 
   React.useEffect(() => { fetchGovernance(); }, [fetchGovernance]);
 
+  // ── Role permissions editor (OWNER only) ────────────────────────────────────
+  const [rolePermsOpen, setRolePermsOpen] = React.useState(false);
+
   // ── Members (OWNER only — for Transfer Ownership) ───────────────────────────
   const [membersState, setMembersState] = React.useState<MembersState>({ status: "idle" });
   const [transferSelection, setTransferSelection] = React.useState("");
@@ -199,6 +206,31 @@ export function ProjectSettingsTab({
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
+
+  // ── Leave project (non-owners only — the backend blocks the owner) ─────────
+  const [leaveOpen, setLeaveOpen] = React.useState(false);
+  const [leaving, setLeaving] = React.useState(false);
+  const [leaveError, setLeaveError] = React.useState<string | null>(null);
+
+  async function handleLeave() {
+    setLeaving(true);
+    setLeaveError(null);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/leave`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        setLeaveError(data.message ?? "Failed to leave project.");
+        setLeaving(false);
+        return;
+      }
+      setLeaveOpen(false);
+      router.push("/projects");
+      router.refresh();
+    } catch {
+      setLeaveError("Network error. Please try again.");
+      setLeaving(false);
+    }
+  }
 
   // ── Save general ──────────────────────────────────────────────────────────
 
@@ -472,7 +504,11 @@ export function ProjectSettingsTab({
               </button>
             </div>
           ) : (
-            <GovernancePreview project={project} settings={governanceState.settings} />
+            <GovernancePreview
+              project={project}
+              settings={governanceState.settings}
+              onEditRolePermissions={() => setRolePermsOpen(true)}
+            />
           )}
         </SettingsSection>
 
@@ -572,6 +608,36 @@ export function ProjectSettingsTab({
             </div>
           </div>
         )}
+
+        {/* ── Leave project (non-owners only) ── */}
+        {!isOwner && (
+          <div className="rounded-xl border border-destructive/30 bg-card overflow-hidden">
+            <div className="flex items-center gap-3 border-b border-destructive/20 bg-destructive/5 px-5 py-4">
+              <LogOut className="size-4 text-destructive" />
+              <div>
+                <h3 className="text-sm font-semibold text-destructive">Danger Zone</h3>
+                <p className="text-xs text-muted-foreground">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-4 p-5">
+              <div>
+                <p className="text-sm font-medium text-foreground">Leave this project</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  You will lose access to this project immediately.
+                </p>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={() => { setLeaveError(null); setLeaveOpen(true); }}
+              >
+                <LogOut className="size-3.5" />
+                Leave
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Archive confirm dialog ── */}
@@ -632,13 +698,54 @@ export function ProjectSettingsTab({
         loading={deleting}
         onConfirm={handleDelete}
       />
+
+      {/* ── Leave confirm dialog ── */}
+      <ConfirmDialog
+        open={leaveOpen}
+        onOpenChange={(open) => { if (!leaving) setLeaveOpen(open); }}
+        title="Leave this project?"
+        description={
+          <>
+            You will lose access to{" "}
+            <span className="font-semibold text-foreground">{project.name}</span> immediately.
+          </>
+        }
+        detail={leaveError ? <FormErrorBanner message={leaveError} /> : undefined}
+        confirmLabel="Leave"
+        icon="user-minus"
+        variant="destructive"
+        loading={leaving}
+        onConfirm={handleLeave}
+      />
+
+      {/* ── Role permissions editor ── */}
+      {governanceState.status === "success" && (
+        <ProjectRolePermissionsEditModal
+          open={rolePermsOpen}
+          projectId={project.id}
+          settings={governanceState.settings}
+          onClose={() => setRolePermsOpen(false)}
+          onSaved={(updated) => {
+            setRolePermsOpen(false);
+            setGovernanceState({ status: "success", settings: updated });
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // ─── Governance Preview content ────────────────────────────────────────────────
 
-function GovernancePreview({ project, settings }: { project: ProjectSummary; settings: ProjectSettings }) {
+function GovernancePreview({
+  project,
+  settings,
+  onEditRolePermissions,
+}: {
+  project: ProjectSummary;
+  settings: ProjectSettings;
+  onEditRolePermissions: () => void;
+}) {
   return (
     <div className="divide-y divide-border/60">
       {/* Inheritance indicators */}
@@ -665,13 +772,25 @@ function GovernancePreview({ project, settings }: { project: ProjectSummary; set
         </div>
       )}
 
-      {/* Create Task minimum role */}
+      {/* Task rules */}
       <div className="px-5 py-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Task rules
-        </p>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Task rules
+          </p>
+          <button
+            type="button"
+            onClick={onEditRolePermissions}
+            className="flex items-center gap-1 text-xs font-medium text-primary hover:underline underline-offset-4"
+          >
+            <Pencil className="size-3" />
+            Edit
+          </button>
+        </div>
         <div className="space-y-2">
           <RolePermRow label="Create tasks" badge={<ProjectRoleBadge role={settings.create_task_min_role} />} />
+          <RolePermRow label="Update tasks" badge={<ProjectRoleBadge role={settings.update_task_min_role} />} />
+          <RolePermRow label="Delete tasks" badge={<ProjectRoleBadge role={settings.delete_task_min_role} />} />
         </div>
       </div>
 
@@ -701,9 +820,19 @@ function GovernancePreview({ project, settings }: { project: ProjectSummary; set
       </div>
 
       <div className="px-5 py-4">
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={onEditRolePermissions}
+        >
+          <Shield className="size-3.5" />
+          Edit role permissions
+          <ChevronRight className="size-3.5 text-muted-foreground" />
+        </Button>
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
           <Info className="size-3.5 shrink-0" />
-          Full governance editing will be available in a future update.
+          Approval rules, limits, and invite toggles aren't editable yet — only role minimums.
         </p>
       </div>
     </div>

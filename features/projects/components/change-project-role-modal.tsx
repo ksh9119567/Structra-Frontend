@@ -24,9 +24,7 @@ import type { ProjectMembership, ProjectRole } from "@/lib/projects/types";
 
 // ─── Role hierarchy ───────────────────────────────────────────────────────────
 
-const ROLE_LEVEL: Record<ProjectRole, number> = {
-  OWNER: 5, MANAGER: 4, LEAD: 3, CONTRIBUTOR: 2, VIEWER: 1,
-};
+import { PROJECT_ROLE_LEVEL as ROLE_LEVEL } from "@/lib/roles";
 
 type RoleMeta = {
   value: ProjectRole;
@@ -72,6 +70,15 @@ const ROLE_META: RoleMeta[] = [
     permissions: [
       "View tasks and project details",
       "Cannot create or modify anything",
+    ],
+  },
+  {
+    value: "GUEST",
+    label: "Guest",
+    description: "Limited access for external collaborators",
+    permissions: [
+      "View tasks and project details",
+      "No org/team-wide visibility",
     ],
   },
 ];

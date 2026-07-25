@@ -8,7 +8,7 @@ import type { PaginatedResponse } from "@/lib/organizations/types";
 
 /**
  * BFF: List teams the current user belongs to.
- * GET /api/teams?search=&ordering=
+ * GET /api/teams?search=&ordering=&page=&page_size=
  * Proxies to DRF GET /api/v1/teams/get-user-teams/
  */
 export async function GET(request: NextRequest) {
@@ -18,12 +18,14 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const search = searchParams.get("search") ?? "";
-  const ordering = searchParams.get("ordering") ?? "-created_at";
-
   const params = new URLSearchParams();
-  if (search) params.set("search", search);
-  if (ordering) params.set("ordering", ordering);
+
+  const forwarded = ["search", "ordering", "page", "page_size"];
+  for (const key of forwarded) {
+    const val = searchParams.get(key);
+    if (val) params.set(key, val);
+  }
+  if (!params.has("ordering")) params.set("ordering", "-created_at");
 
   const query = params.toString();
   const path = `/teams/get-user-teams/${query ? `?${query}` : ""}`;

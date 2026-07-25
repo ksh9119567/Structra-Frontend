@@ -13,7 +13,11 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/features/shared/confirm-dialog";
+import { FormErrorBanner } from "@/features/shared/members/member-ui";
+import { CreateProjectModal } from "@/features/projects/components/create-project-modal";
 import type { TeamSummary, TeamMembership, TeamRole } from "@/lib/teams/types";
+import type { ProjectSummary } from "@/lib/projects/types";
 import { TeamOverviewTab } from "./team-overview-tab";
 import { TeamMembersTab } from "./team-members-tab";
 import { TeamProjectsTab } from "./team-projects-tab";
@@ -85,6 +89,39 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [changeRoleTarget, setChangeRoleTarget] = React.useState<TeamMembership | null>(null);
   const [transferTarget, setTransferTarget] = React.useState<TeamMembership | null>(null);
+  const [removeTarget, setRemoveTarget] = React.useState<TeamMembership | null>(null);
+  const [removing, setRemoving] = React.useState(false);
+  const [removeError, setRemoveError] = React.useState<string | null>(null);
+  const [membersRefreshKey, setMembersRefreshKey] = React.useState(0);
+  const [createProjectOpen, setCreateProjectOpen] = React.useState(false);
+
+  async function handleRemoveConfirm() {
+    if (!removeTarget) return;
+    setRemoving(true);
+    setRemoveError(null);
+    try {
+      const res = await fetch(
+        `/api/teams/${team.id}/members/${encodeURIComponent(removeTarget.user_email)}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setRemoveError(data.message ?? "Failed to remove member.");
+        return;
+      }
+      setRemoveTarget(null);
+      setMembersRefreshKey((k) => k + 1);
+    } catch {
+      setRemoveError("Network error. Please check your connection.");
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  function handleProjectCreated(project: ProjectSummary) {
+    setCreateProjectOpen(false);
+    router.push(`/projects/${project.id}`);
+  }
 
   function setTab(tab: TabKey) {
     const params = new URLSearchParams(searchParams.toString());
@@ -183,7 +220,7 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
             team={team}
             currentUserEmail={currentUserEmail}
             onInvite={() => setInviteOpen(true)}
-            onCreateProject={() => {}}
+            onCreateProject={() => setCreateProjectOpen(true)}
           />
         )}
         {activeTab === "members" && (
@@ -193,16 +230,18 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
             onInvite={() => setInviteOpen(true)}
             onChangeRole={(member) => setChangeRoleTarget(member)}
             onTransferOwnership={(member) => setTransferTarget(member)}
+            onRemoveMember={(member) => setRemoveTarget(member)}
             // Keep the callback so the members tab can still update the role
             // if the user's role changes while they're on that tab.
             onCurrentUserRoleResolved={setCurrentUserRole}
+            refreshKey={membersRefreshKey}
           />
         )}
         {activeTab === "projects" && (
           <TeamProjectsTab
             team={team}
             currentUserRole={currentUserRole}
-            onCreateProject={() => {}}
+            onCreateProject={() => setCreateProjectOpen(true)}
           />
         )}
         {activeTab === "settings" && (
@@ -219,6 +258,7 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
         teamId={team.id}
         teamName={team.name}
         onClose={() => setInviteOpen(false)}
+        onInvited={() => setMembersRefreshKey((k) => k + 1)}
       />
       <ChangeTeamRoleModal
         open={changeRoleTarget !== null}
@@ -226,6 +266,7 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
         member={changeRoleTarget}
         currentUserRole={currentUserRole}
         onClose={() => setChangeRoleTarget(null)}
+        onRoleChanged={() => setMembersRefreshKey((k) => k + 1)}
       />
       <TransferTeamOwnershipModal
         open={transferTarget !== null}
@@ -234,6 +275,36 @@ export function TeamDetailShell({ team, currentUserEmail }: TeamDetailShellProps
         member={transferTarget}
         currentOwnerEmail={currentUserEmail}
         onClose={() => setTransferTarget(null)}
+        onTransferred={() => {
+          setCurrentUserRole("MANAGER");
+          setMembersRefreshKey((k) => k + 1);
+        }}
+      />
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => { if (!open) { setRemoveTarget(null); setRemoveError(null); } }}
+        title="Remove member?"
+        description={
+          <>
+            <span className="font-medium text-foreground">{removeTarget?.user_email}</span>{" "}
+            will lose access to this team immediately.
+          </>
+        }
+        detail={removeError ? <FormErrorBanner message={removeError} /> : undefined}
+        confirmLabel="Remove"
+        variant="destructive"
+        icon="user-minus"
+        loading={removing}
+        onConfirm={handleRemoveConfirm}
+      />
+      <CreateProjectModal
+        open={createProjectOpen}
+        onClose={() => setCreateProjectOpen(false)}
+        onCreated={handleProjectCreated}
+        preselectedOrgId={team.organization ?? undefined}
+        preselectedOrgName={team.organization_name ?? undefined}
+        preselectedTeamId={team.id}
+        preselectedTeamName={team.name}
       />
     </div>
   );

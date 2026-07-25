@@ -20,6 +20,7 @@ import { ActivitySection, type ActivityState } from "@/features/shared/activity/
 import type { ActivityLogEntry } from "@/lib/organizations/types";
 import type { ProjectSummary, ProjectRole, ProjectStatus } from "@/lib/projects/types";
 import { PROJECT_STATUS_META } from "@/lib/projects/types";
+import { ProjectRoleBadge } from "./project-role-badge";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -343,14 +344,17 @@ function ProjectSummaryCard({
           <div className="flex items-center gap-3 px-5 py-3">
             <Users className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="w-16 shrink-0 text-xs text-muted-foreground">Team</span>
-            <Link
-              href={`/teams/${project.team}`}
-              prefetch={false}
-              className="flex-1 truncate text-right text-xs font-medium text-primary hover:underline underline-offset-4"
-              title={project.team_name}
-            >
-              {project.team_name}
-            </Link>
+            <div className="flex flex-1 items-center justify-end gap-1.5 min-w-0">
+              <Link
+                href={`/teams/${project.team}`}
+                prefetch={false}
+                className="truncate text-right text-xs font-medium text-primary hover:underline underline-offset-4"
+                title={project.team_name}
+              >
+                {project.team_name}
+              </Link>
+              {project.team_role && <ProjectRoleBadge role={project.team_role} />}
+            </div>
           </div>
         ) : null}
 

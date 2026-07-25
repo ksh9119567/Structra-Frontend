@@ -32,9 +32,7 @@ import {
 
 const PAGE_SIZE = 10;
 
-const ROLE_LEVEL: Record<ProjectRole, number> = {
-  OWNER: 5, MANAGER: 4, LEAD: 3, CONTRIBUTOR: 2, VIEWER: 1,
-};
+import { PROJECT_ROLE_LEVEL as ROLE_LEVEL } from "@/lib/roles";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

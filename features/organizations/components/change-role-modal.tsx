@@ -25,9 +25,7 @@ import type { OrgMembership, OrgRole } from "@/lib/organizations/types";
 
 // ─── Role metadata ────────────────────────────────────────────────────────────
 
-const ROLE_LEVEL: Record<OrgRole, number> = {
-  OWNER: 5, ADMIN: 4, MANAGER: 3, MEMBER: 2, VIEWER: 1,
-};
+import { ORG_ROLE_LEVEL as ROLE_LEVEL } from "@/lib/roles";
 
 type RoleMeta = {
   value: OrgRole;

@@ -94,6 +94,11 @@ function ProjectContextBadge({ project }: { project: ProjectSummary }) {
       >
         <Users className="size-3 shrink-0" />
         <span className="truncate max-w-[140px]">{project.team_name}</span>
+        {project.team_role && (
+          <span className="text-muted-foreground/60">
+            · {project.team_role.charAt(0) + project.team_role.slice(1).toLowerCase()}
+          </span>
+        )}
       </span>
     );
   }

@@ -5,6 +5,7 @@ import { ApiError } from "@/lib/api/errors";
 import { getAccessToken } from "@/lib/auth/tokens";
 import type { ProjectSummary } from "@/lib/projects/types";
 import type { PaginatedResponse } from "@/lib/organizations/types";
+import { TEAM_ASSIGNABLE_ROLES } from "@/lib/roles";
 
 /**
  * BFF: List projects the current user belongs to.
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
 /**
  * BFF: Create a new project.
  * POST /api/projects
- * Body: { name: string; description?: string; organization_id?: string; team_id?: string }
+ * Body: { name: string; description?: string; organization_id?: string; team_id?: string; team_role?: string }
  * Proxies to DRF POST /api/v1/projects/create-project/
  */
 export async function POST(request: NextRequest) {
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
     description?: unknown;
     organization_id?: unknown;
     team_id?: unknown;
+    team_role?: unknown;
   };
   try {
     body = await request.json();
@@ -94,11 +96,17 @@ export async function POST(request: NextRequest) {
     typeof body.team_id === "string" && body.team_id.trim()
       ? body.team_id.trim()
       : undefined;
+  const team_role =
+    typeof body.team_role === "string" &&
+    TEAM_ASSIGNABLE_ROLES.includes(body.team_role as (typeof TEAM_ASSIGNABLE_ROLES)[number])
+      ? body.team_role
+      : undefined;
 
   const payload: Record<string, string> = { name };
   if (description) payload.description = description;
   if (organization_id) payload.organization_id = organization_id;
   if (team_id) payload.team_id = team_id;
+  if (team_id && team_role) payload.team_role = team_role;
 
   try {
     const result = await serverApi.post<{ message: string; data: ProjectSummary }>(

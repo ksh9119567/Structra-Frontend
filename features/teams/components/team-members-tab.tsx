@@ -36,9 +36,7 @@ import type { TeamMembership, TeamRole, TeamSummary } from "@/lib/teams/types";
 const TEAM_ROLES: TeamRole[] = ["OWNER", "MANAGER", "LEAD", "MEMBER", "VIEWER"];
 const PAGE_SIZE = 10;
 
-const ROLE_LEVEL: Record<TeamRole, number> = {
-  OWNER: 5, MANAGER: 4, LEAD: 3, MEMBER: 2, VIEWER: 1,
-};
+import { TEAM_ROLE_LEVEL as ROLE_LEVEL } from "@/lib/roles";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +56,8 @@ type TeamMembersTabProps = {
   onTransferOwnership?: (member: TeamMembership) => void;
   onRemoveMember?: (member: TeamMembership) => void;
   onCurrentUserRoleResolved?: (role: TeamRole) => void;
+  /** Bump this value to force a re-fetch of the members list (e.g. after a mutation). */
+  refreshKey?: number;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -70,6 +70,7 @@ export function TeamMembersTab({
   onTransferOwnership,
   onRemoveMember,
   onCurrentUserRoleResolved,
+  refreshKey = 0,
 }: TeamMembersTabProps) {
   const [fetchState, setFetchState] = React.useState<FetchState>({ status: "loading" });
   const [search, setSearch] = React.useState("");
@@ -115,7 +116,7 @@ export function TeamMembersTab({
     }
   }, [team.id, page, debouncedSearch, roleFilter, sortField, sortDir]);
 
-  React.useEffect(() => { fetchMembers(); }, [fetchMembers]);
+  React.useEffect(() => { fetchMembers(); }, [fetchMembers, refreshKey]);
 
   // Resolve current user's role
   const currentUserRole: TeamRole =

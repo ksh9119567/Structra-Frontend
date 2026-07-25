@@ -23,9 +23,14 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import type { ProjectSummary } from "@/lib/projects/types";
+import type { ProjectSummary, ProjectRole } from "@/lib/projects/types";
 import type { OrganizationSummary } from "@/lib/organizations/types";
 import type { TeamSummary } from "@/lib/teams/types";
+import { TEAM_ASSIGNABLE_ROLES } from "@/lib/roles";
+
+const TEAM_ROLE_LABELS: Record<string, string> = {
+  MANAGER: "Manager", LEAD: "Lead", CONTRIBUTOR: "Contributor", VIEWER: "Viewer",
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,6 +67,7 @@ export function CreateProjectModal({
   const [description, setDescription] = React.useState("");
   const [selectedOrgId, setSelectedOrgId] = React.useState(preselectedOrgId ?? "");
   const [selectedTeamId, setSelectedTeamId] = React.useState(preselectedTeamId ?? "");
+  const [teamRole, setTeamRole] = React.useState<ProjectRole>("CONTRIBUTOR");
   const [nameError, setNameError] = React.useState<string | null>(null);
   const [state, setState] = React.useState<ModalState>({ phase: "idle" });
   const [orgs, setOrgs] = React.useState<OrganizationSummary[]>([]);
@@ -80,6 +86,7 @@ export function CreateProjectModal({
       setDescription("");
       setSelectedOrgId(preselectedOrgId ?? "");
       setSelectedTeamId(preselectedTeamId ?? "");
+      setTeamRole("CONTRIBUTOR");
       setNameError(null);
       setState({ phase: "idle" });
       const t = setTimeout(() => inputRef.current?.focus(), 80);
@@ -181,7 +188,10 @@ export function CreateProjectModal({
       const orgId = preselectedOrgId ?? selectedOrgId;
       const teamId = preselectedTeamId ?? selectedTeamId;
       if (orgId) body.organization_id = orgId;
-      if (teamId) body.team_id = teamId;
+      if (teamId) {
+        body.team_id = teamId;
+        body.team_role = teamRole;
+      }
 
       const res = await fetch("/api/projects", {
         method: "POST",
@@ -230,6 +240,7 @@ export function CreateProjectModal({
             description={description}
             selectedOrgId={selectedOrgId}
             selectedTeamId={selectedTeamId}
+            teamRole={teamRole}
             nameError={nameError}
             state={state}
             isSubmitting={isSubmitting}
@@ -247,6 +258,7 @@ export function CreateProjectModal({
             onDescriptionChange={(e) => setDescription(e.target.value)}
             onOrgChange={handleOrgChange}
             onTeamChange={setSelectedTeamId}
+            onTeamRoleChange={setTeamRole}
             onSubmit={handleSubmit}
             onClose={onClose}
           />
@@ -263,6 +275,7 @@ type FormViewProps = {
   description: string;
   selectedOrgId: string;
   selectedTeamId: string;
+  teamRole: ProjectRole;
   nameError: string | null;
   state: ModalState;
   isSubmitting: boolean;
@@ -280,6 +293,7 @@ type FormViewProps = {
   onDescriptionChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onOrgChange: (id: string) => void;
   onTeamChange: (id: string) => void;
+  onTeamRoleChange: (role: ProjectRole) => void;
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
 };
@@ -289,6 +303,7 @@ function FormView({
   description,
   selectedOrgId,
   selectedTeamId,
+  teamRole,
   nameError,
   state,
   isSubmitting,
@@ -306,9 +321,11 @@ function FormView({
   onDescriptionChange,
   onOrgChange,
   onTeamChange,
+  onTeamRoleChange,
   onSubmit,
   onClose,
 }: FormViewProps) {
+  const hasTeam = Boolean(preselectedTeamId || selectedTeamId);
   const canSubmit = name.trim().length > 0 && !isSubmitting;
 
   return (
@@ -474,6 +491,31 @@ function FormView({
               Scope this project to one of your teams within the selected organization.
             </p>
           </div>
+
+          {/* Team role — only shown once a team is selected */}
+          {hasTeam && (
+            <div className="space-y-1.5">
+              <Label htmlFor="project-team-role" className="text-sm font-medium text-foreground">
+                Team role
+              </Label>
+              <select
+                id="project-team-role"
+                value={teamRole}
+                onChange={(e) => onTeamRoleChange(e.target.value as typeof teamRole)}
+                disabled={isSubmitting}
+                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 disabled:opacity-50 transition-colors appearance-none"
+              >
+                {TEAM_ASSIGNABLE_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {TEAM_ROLE_LABELS[role] ?? role}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Every member of the team inherits this role on the project dynamically.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
