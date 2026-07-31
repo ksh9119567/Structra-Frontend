@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
     await setAuthCookies({
       accessToken: result.access,
       refreshToken: result.refresh,
+      rememberMe: false,
     });
 
     return NextResponse.json({ success: true, user: result.user });

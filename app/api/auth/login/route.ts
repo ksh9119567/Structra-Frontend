@@ -22,7 +22,7 @@ type LoginResponse = {
  * tokens in httpOnly cookies so they never touch client JS.
  */
 export async function POST(request: NextRequest) {
-  let payload: { email?: unknown; password?: unknown };
+  let payload: { email?: unknown; password?: unknown; rememberMe?: unknown };
   try {
     payload = await request.json();
   } catch {
@@ -42,16 +42,18 @@ export async function POST(request: NextRequest) {
 
   const email = String(payload.email).trim();
   const password = String(payload.password);
+  const rememberMe = payload.rememberMe === true;
 
   try {
-    // DRF's TokenObtainPairView expects JSON: { email, password }
+    // DRF's TokenObtainPairView expects JSON: { email, password, remember_me }
     const tokens = await serverApi.post<LoginResponse>("/accounts/login/", {
-      json: { email, password },
+      json: { email, password, remember_me: rememberMe },
     });
 
     await setAuthCookies({
       accessToken: tokens.access,
       refreshToken: tokens.refresh,
+      rememberMe,
     });
 
     return NextResponse.json({ success: true });
