@@ -11,7 +11,13 @@ export const REFRESH_TOKEN_COOKIE = "structra_refresh_token";
 
 // Mirrors the backend token lifetimes (SIMPLE_JWT settings).
 export const ACCESS_TOKEN_MAX_AGE = 30 * 60; // 30 minutes, in seconds
-export const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60; // 7 days, in seconds
+
+// Refresh token persistence depends on "Remember me":
+// - checked: persistent cookie, mirrors backend REFRESH_TOKEN_REMEMBER_ME_LIFETIME.
+// - unchecked: no maxAge is set at all (true session cookie) — see setAuthCookies in
+//   tokens.ts. The backend still bounds the underlying JWT to REFRESH_TOKEN_LIFETIME
+//   (1 day) as a backstop, since some browsers restore session cookies across restarts.
+export const REFRESH_TOKEN_MAX_AGE_REMEMBER_ME = 30 * 24 * 60 * 60; // 30 days, in seconds
 
 /** Base URL of the DRF backend. Server-side only. */
 export function getApiBaseUrl(): string {
